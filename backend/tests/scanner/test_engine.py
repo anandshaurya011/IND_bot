@@ -243,3 +243,15 @@ def test_resolve_universe_watchlist_symbols_come_first(monkeypatch, tmp_db_path)
     # should put it first regardless of "watchlist"'s position in strategy.universe.
     assert symbols[0] == "PARTIAL"
     assert set(symbols) == {"OK", "PARTIAL", "FAIL"}
+
+
+def test_parse_spec_uses_length_for_most_indicators():
+    from scanner.engine import _parse_spec
+
+    assert _parse_spec("ema:200") == ("ema", {"length": 200})
+
+
+def test_parse_spec_uses_days_for_vwap_rolling():
+    from scanner.engine import _parse_spec
+
+    assert _parse_spec("vwap_rolling:5") == ("vwap_rolling", {"days": 5})

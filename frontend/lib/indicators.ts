@@ -10,8 +10,12 @@ export const KNOWN_INDICATORS: { value: string; label: string; needsLength: bool
   { value: "supertrend", label: "Supertrend", needsLength: true },
   { value: "adx", label: "ADX", needsLength: true },
   { value: "vwap_session", label: "VWAP (session)", needsLength: false },
-  { value: "vwap_rolling", label: "VWAP (rolling)", needsLength: false },
+  { value: "vwap_rolling", label: "VWAP (rolling N days)", needsLength: true },
 ];
+
+// Indicators meaningful to overlay on a price chart (excludes the pseudo-
+// indicator "close", which is identical to the price line already shown).
+export const CHART_OVERLAY_INDICATORS = KNOWN_INDICATORS.filter((i) => i.value !== "close");
 
 /**
  * Builds the backend's compare_to spec string, matching the parsing
@@ -24,4 +28,15 @@ export function buildCompareToSpec(indicator: string, length: number | undefined
   if (indicator === "price") return "price";
   if (length !== undefined && length !== null) return `${indicator}:${length}`;
   return indicator;
+}
+
+// calc.vwap_rolling's lookback kwarg is named `days`, not `length` like every
+// other parametrized indicator (mirrors backend/scanner/engine.py's
+// _SPEC_PARAM_NAME) - a Condition's own `params` dict is passed straight to
+// the indicator function with no spec-string remapping, so the LEFT-side
+// indicator picker needs to build the right key itself.
+export function buildIndicatorParams(indicator: string, length: number | undefined): Record<string, number> {
+  if (length === undefined || length === null) return {};
+  const paramName = indicator === "vwap_rolling" ? "days" : "length";
+  return { [paramName]: length };
 }

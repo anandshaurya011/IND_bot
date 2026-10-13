@@ -161,20 +161,22 @@ def test_get_instrument_candles_returns_404_for_unknown_symbol(client):
     assert resp.status_code == 404
 
 
+class _FakeCandleProvider:
+    name = "yfinance"
+
+    def get_daily_candles(self, symbol, lookback_days):
+        from market_data.base import Candle
+
+        return [
+            Candle(ts=1_700_000_000 + i * 86400, open=100, high=101, low=99, close=100 + i, volume=1000)
+            for i in range(lookback_days)
+        ]
+
+
 def test_get_instrument_candles_returns_candles_and_no_overlay_without_history(client, monkeypatch):
     import main as main_module
-    from market_data.base import Candle
 
-    class _FakeProvider:
-        name = "yfinance"
-
-        def get_daily_candles(self, symbol, lookback_days):
-            return [
-                Candle(ts=1_700_000_000 + i * 86400, open=100, high=101, low=99, close=100 + i, volume=1000)
-                for i in range(10)
-            ]
-
-    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeProvider())
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeCandleProvider())
 
     resp = client.get("/instruments/RELIANCE/candles?lookback_days=10")
     assert resp.status_code == 200
@@ -182,4 +184,44 @@ def test_get_instrument_candles_returns_candles_and_no_overlay_without_history(c
     assert body["symbol"] == "RELIANCE"
     assert len(body["candles"]) == 10
     # no prior satisfied scan result for this user/symbol -> no overlay, not fabricated
-    assert body["overlay"] is None
+    assert body["overlays"] == []
+
+
+def test_get_instrument_candles_computes_requested_indicator_overlays(client, monkeypatch):
+    import main as main_module
+
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeCandleProvider())
+
+    resp = client.get("/instruments/RELIANCE/candles?lookback_days=30&indicators=ema:5,sma:5")
+    assert resp.status_code == 200
+    body = resp.json()
+    overlays = {o["indicator"]: o for o in body["overlays"]}
+    assert set(overlays) == {"ema", "sma"}
+    assert overlays["ema"]["params"] == {"length": 5}
+    assert overlays["ema"]["strategy_name"] is None
+    assert len(overlays["ema"]["values"]) == 30
+
+
+def test_get_instrument_candles_rejects_unknown_indicator(client, monkeypatch):
+    import main as main_module
+
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeCandleProvider())
+
+    resp = client.get("/instruments/RELIANCE/candles?lookback_days=10&indicators=not_a_real_indicator")
+    assert resp.status_code == 400
+
+
+def test_get_instrument_candles_vwap_rolling_overlay_computes_successfully(client, monkeypatch):
+    import main as main_module
+
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeCandleProvider())
+
+    resp = client.get("/instruments/RELIANCE/candles?lookback_days=30&indicators=vwap_rolling:5")
+    assert resp.status_code == 200
+    overlays = resp.json()["overlays"]
+    assert len(overlays) == 1
+    assert overlays[0]["indicator"] == "vwap_rolling"
+    assert overlays[0]["params"] == {"days": 5}
+    # at least the trailing values should be real numbers, not all null
+    # (a days= kwarg mismatch would make every value null/absent instead).
+    assert any(v["value"] is not None for v in overlays[0]["values"])

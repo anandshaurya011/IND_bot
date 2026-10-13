@@ -137,16 +137,24 @@ def _symbol_for_provider(instrument: Instrument, provider_name: str) -> str:
     return instrument.yf_ticker
 
 
+# calc.vwap_rolling's lookback kwarg is named `days`, not `length` like every
+# other parametrized indicator - this maps the spec's single numeric param to
+# whatever kwarg name each indicator function actually expects.
+_SPEC_PARAM_NAME = {"vwap_rolling": "days"}
+
+
 def _parse_spec(spec: str) -> tuple[str, dict]:
     """Parse a `compare_to` indicator spec of the form "name" or "name:param".
 
     "price" is handled separately by the caller. A bare name uses empty
-    params; "name:length" (e.g. "ema:50") passes `length=<int>` - the only
-    parametrization `compare_to` needs for now.
+    params; "name:N" (e.g. "ema:50") passes the one numeric param each
+    indicator function expects (`length` for most, `days` for
+    `vwap_rolling`) - the only parametrization `compare_to` needs for now.
     """
     if ":" in spec:
         name, _, raw_param = spec.partition(":")
-        return name, {"length": int(raw_param)}
+        param_name = _SPEC_PARAM_NAME.get(name, "length")
+        return name, {param_name: int(raw_param)}
     return spec, {}
 
 

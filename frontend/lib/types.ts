@@ -91,7 +91,7 @@ export interface Candle {
 export interface IndicatorOverlay {
   indicator: string;
   params: Record<string, number>;
-  strategy_name: string;
+  strategy_name: string | null;
   values: { ts: number; value: number | null }[];
 }
 
@@ -100,5 +100,5 @@ export interface InstrumentCandlesResponse {
   instrument: Instrument;
   provider: string;
   candles: Candle[];
-  overlay: IndicatorOverlay | null;
+  overlays: IndicatorOverlay[];
 }

@@ -152,12 +152,21 @@ def get_universe() -> dict[str, list[Instrument]]:
 def get_instrument_candles(
     symbol: str,
     provider: str = Query("yfinance"),
-    lookback_days: int = Query(180, ge=5, le=1000),
+    lookback_days: int = Query(180, ge=5, le=2000),
+    indicators: str = Query(
+        "",
+        description=(
+            "Comma-separated indicator specs to overlay, e.g. 'ema:20,vwma:50,rsi:14'. "
+            "A bare name (no ':length') uses that indicator's default params. "
+            "If omitted, falls back to the indicator from the most recent strategy "
+            "that matched this symbol for the authenticated user, if any."
+        ),
+    ),
 ):
-    """Historical daily candles for one instrument, plus (if available) the
-    indicator overlay from the most recent strategy that matched this symbol
-    for the authenticated user. Never fabricates data: a provider failure
-    is surfaced as a 502, not a guessed candle series.
+    """Historical daily candles for one instrument, plus indicator overlays
+    for charting. Never fabricates data: a provider failure is surfaced as
+    a 502, not a guessed candle series; an unknown/invalid indicator spec
+    is surfaced as a 400, not silently dropped.
     """
     uid = auth.user_id_var.get()
     instrument = resolve_instrument(symbol)
@@ -176,23 +185,88 @@ def get_instrument_candles(
         for c in candles
     ]
 
-    overlay = _last_matching_overlay(uid, symbol, candles)
+    df = calc.to_dataframe(candles)
+
+    specs = [s.strip() for s in indicators.split(",") if s.strip()]
+    if specs:
+        overlays = []
+        for spec in specs:
+            name, params = _parse_indicator_spec(spec)
+            if name not in _INDICATOR_FUNCS:
+                raise HTTPException(
+                    400, f"unknown indicator {name!r}; must be one of {sorted(_INDICATOR_FUNCS)}"
+                )
+            overlay = _compute_overlay(df, name, params, strategy_name=None)
+            if overlay is not None:
+                overlays.append(overlay)
+    else:
+        overlays = []
+        auto = _last_matching_overlay(uid, symbol, df)
+        if auto is not None:
+            overlays.append(auto)
 
     return {
         "symbol": symbol,
         "instrument": instrument,
         "provider": provider,
         "candles": candle_rows,
-        "overlay": overlay,
+        "overlays": overlays,
     }
 
 
-def _last_matching_overlay(user_id: str, symbol: str, candles: list) -> dict | None:
+def _parse_indicator_spec(spec: str) -> tuple[str, dict]:
+    """Parse "name" or "name:N" (same convention and same `days`-for-
+    vwap_rolling exception as strategies' compare_to specs - see
+    scanner.engine._parse_spec / _SPEC_PARAM_NAME).
+    """
+    from scanner.engine import _SPEC_PARAM_NAME
+
+    if ":" in spec:
+        name, _, raw_param = spec.partition(":")
+        name = name.strip()
+        try:
+            value = int(raw_param)
+        except ValueError:
+            raise HTTPException(400, f"indicator spec {spec!r}: parameter must be an integer") from None
+        param_name = _SPEC_PARAM_NAME.get(name, "length")
+        return name, {param_name: value}
+    return spec.strip(), {}
+
+
+def _compute_overlay(df, indicator: str, params: dict, strategy_name: str | None) -> dict | None:
+    """Compute one indicator's series over `df` as a chart-overlay payload.
+    Returns None if the indicator can't be computed - never fabricates a line.
+    """
+    func = _INDICATOR_FUNCS.get(indicator)
+    if func is None:
+        return None
+    try:
+        series = func(df, **params)
+    except Exception:  # noqa: BLE001 - overlay is best-effort, never breaks the chart
+        return None
+    if hasattr(series, "iloc") and series.ndim > 1:
+        # Multi-column indicator output (e.g. macd/bollinger/supertrend) -
+        # use its first column as the overlay line.
+        series = series.iloc[:, 0]
+
+    values = [
+        {"ts": int(ts.timestamp()), "value": None if value != value else float(value)}  # NaN check
+        for ts, value in series.items()
+    ]
+
+    return {
+        "indicator": indicator,
+        "params": params,
+        "strategy_name": strategy_name,
+        "values": values,
+    }
+
+
+def _last_matching_overlay(user_id: str, symbol: str, df) -> dict | None:
     """Find the most recent `satisfied=1` scan result for this user/symbol,
     load the strategy that produced it, and compute that strategy's first
-    condition's indicator series over `candles` for a chart overlay.
-    Returns None if there's no matching history or the indicator can't be
-    computed (e.g. not enough candles) - never fabricates an overlay.
+    condition's indicator series over `df` for a chart overlay. Returns None
+    if there's no matching history - never fabricates an overlay.
     """
     conn = schema.conn()
     try:
@@ -220,31 +294,7 @@ def _last_matching_overlay(user_id: str, symbol: str, candles: list) -> dict | N
         return None
     condition = strategy.conditions[0]
 
-    func = _INDICATOR_FUNCS.get(condition.indicator)
-    if func is None:
-        return None
-
-    df = calc.to_dataframe(candles)
-    try:
-        series = func(df, **condition.params)
-    except Exception:  # noqa: BLE001 - overlay is best-effort, never breaks the chart
-        return None
-    if hasattr(series, "iloc") and series.ndim > 1:
-        # Multi-column indicator output (e.g. macd/bollinger/supertrend) -
-        # use its first column as the overlay line.
-        series = series.iloc[:, 0]
-
-    values = [
-        {"ts": int(ts.timestamp()), "value": None if value != value else float(value)}  # NaN check
-        for ts, value in series.items()
-    ]
-
-    return {
-        "indicator": condition.indicator,
-        "params": condition.params,
-        "strategy_name": strategy.name,
-        "values": values,
-    }
+    return _compute_overlay(df, condition.indicator, condition.params, strategy.name)
 
 
 # --------------------------------------------------------------------------

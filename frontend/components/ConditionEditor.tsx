@@ -1,6 +1,6 @@
 "use client";
 
-import { KNOWN_INDICATORS, buildCompareToSpec } from "@/lib/indicators";
+import { KNOWN_INDICATORS, buildCompareToSpec, buildIndicatorParams } from "@/lib/indicators";
 import type { Condition } from "@/lib/types";
 
 const COMPARISONS: { value: Condition["comparison"]; label: string }[] = [
@@ -34,7 +34,8 @@ export function ConditionEditor({
   canRemove: boolean;
 }) {
   const leftInfo = indicatorInfo(condition.indicator);
-  const leftLength = typeof condition.params.length === "number" ? condition.params.length : undefined;
+  const leftParamKey = condition.indicator === "vwap_rolling" ? "days" : "length";
+  const leftLength = typeof condition.params[leftParamKey] === "number" ? condition.params[leftParamKey] : undefined;
 
   const compareTo = parseCompareTo(condition.compare_to);
   const isPrice = compareTo.indicator === "price";
@@ -42,12 +43,12 @@ export function ConditionEditor({
 
   function setLeftIndicator(indicator: string) {
     const info = indicatorInfo(indicator);
-    const params: Record<string, number> = info?.needsLength ? { length: leftLength ?? 20 } : {};
+    const params = info?.needsLength ? buildIndicatorParams(indicator, leftLength ?? 20) : {};
     onChange({ ...condition, indicator, params });
   }
 
   function setLeftLength(length: number) {
-    onChange({ ...condition, params: { ...condition.params, length } });
+    onChange({ ...condition, params: buildIndicatorParams(condition.indicator, length) });
   }
 
   function setComparison(comparison: Condition["comparison"]) {
