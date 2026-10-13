@@ -48,10 +48,18 @@ def _parse_ist(value: str, fmt: str) -> int:
 
 
 def _new_session() -> httpx.Client:
-    client = httpx.Client(headers=_HEADERS, timeout=10.0)
-    # Cookie warmup: NSE rejects bare API requests without a browser-origin cookie.
+    return httpx.Client(headers=_HEADERS, timeout=10.0)
+
+
+def _warm_up(client: httpx.Client) -> None:
+    """Cookie warmup: NSE rejects bare API requests without a browser-origin
+    cookie. Must run on the SAME client instance that then does the real
+    request (inside its `with` block) - httpx marks a client "opened" the
+    moment any request is sent, so firing this request before entering the
+    `with` block makes the subsequent `__enter__` raise
+    "Cannot open a client instance more than once."
+    """
     client.get(_BASE_URL)
-    return client
 
 
 class NSEProvider(Provider):
@@ -62,6 +70,7 @@ class NSEProvider(Provider):
     def get_daily_candles(self, symbol: str, lookback_days: int) -> list[Candle]:
         try:
             with _new_session() as client:
+                _warm_up(client)
                 resp = client.get(
                     f"{_BASE_URL}/api/historical/cm/equity",
                     params={"symbol": symbol, "series": '["EQ"]'},
@@ -100,6 +109,7 @@ class NSEProvider(Provider):
     def get_quote(self, symbol: str) -> dict:
         try:
             with _new_session() as client:
+                _warm_up(client)
                 resp = client.get(f"{_BASE_URL}/api/quote-equity", params={"symbol": symbol})
                 resp.raise_for_status()
                 data = resp.json()
