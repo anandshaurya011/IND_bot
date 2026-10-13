@@ -53,6 +53,9 @@ for _insts in _UNIVERSES.values():
         _ALL.setdefault(_inst.symbol, _inst)
 
 
+VALID_UNIVERSE_NAMES = sorted(_UNIVERSES.keys())
+
+
 def list_universe(name: str) -> list[Instrument]:
     """Return the instruments in the named universe.
 

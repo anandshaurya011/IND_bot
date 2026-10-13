@@ -30,6 +30,16 @@ def test_create_invalid_strategy_returns_400(client):
     assert "intraday" in str(resp.json()).lower() or "errors" in resp.json().get("detail", {})
 
 
+def test_create_strategy_malformed_scan_time_returns_400_and_not_persisted(client):
+    body = _valid_strategy_body(scan_time="25:99")
+    resp = client.post("/strategies", json=body)
+    assert resp.status_code == 400
+
+    resp = client.get("/strategies")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_create_strategy_run_now_and_history(client, monkeypatch):
     import scanner.engine as engine_module
     from scanner.engine import ScanResultRow

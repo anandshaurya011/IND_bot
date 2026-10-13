@@ -31,6 +31,7 @@ _SCHEMA = [
 
 def conn() -> sqlite3.Connection:
     path = Path(settings.DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
         os.close(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600))
     c = sqlite3.connect(path, timeout=10, isolation_level=None)

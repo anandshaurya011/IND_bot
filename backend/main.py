@@ -12,6 +12,7 @@ Run:  .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from datetime import datetime
@@ -39,7 +40,29 @@ IST = ZoneInfo("Asia/Kolkata")
 
 UNIVERSE_NAMES = ["nifty50", "banknifty", "niftyit", "indices", "all_stocks"]
 
+logger = logging.getLogger(__name__)
+
 scheduler_service: SchedulerService | None = None
+
+
+def _load_scheduled_strategies(scheduler_service: SchedulerService) -> None:
+    """Load every enabled strategy row and schedule it.
+
+    One corrupt/unschedulable row must never block the others or crash
+    startup - each strategy's `add_strategy_job` call is isolated in its own
+    try/except, logged, and skipped on failure.
+    """
+    conn = schema.conn()
+    try:
+        rows = conn.execute("SELECT id, config_json FROM strategies WHERE enabled = 1").fetchall()
+    finally:
+        conn.close()
+    for row in rows:
+        try:
+            strategy = Strategy.model_validate_json(row["config_json"])
+            scheduler_service.add_strategy_job(strategy)
+        except Exception:
+            logger.exception("failed to schedule strategy id=%s at startup", row["id"])
 
 
 @app.on_event("startup")
@@ -47,20 +70,24 @@ def _startup() -> None:
     global scheduler_service
     schema.init_db()
     scheduler_service = SchedulerService()
-    conn = schema.conn()
-    try:
-        rows = conn.execute("SELECT config_json FROM strategies WHERE enabled = 1").fetchall()
-    finally:
-        conn.close()
-    for row in rows:
-        strategy = Strategy.model_validate_json(row["config_json"])
-        scheduler_service.add_strategy_job(strategy)
+    _load_scheduled_strategies(scheduler_service)
 
 
 @app.on_event("shutdown")
 def _shutdown() -> None:
     if scheduler_service is not None:
         scheduler_service.shutdown()
+
+
+def _set_enabled(strategy_id: str, user_id: str, enabled: bool) -> None:
+    conn = schema.conn()
+    try:
+        conn.execute(
+            "UPDATE strategies SET enabled = ? WHERE id = ? AND user_id = ?",
+            (int(enabled), strategy_id, user_id),
+        )
+    finally:
+        conn.close()
 
 
 def _row_to_strategy(row) -> Strategy:
@@ -194,7 +221,12 @@ def post_strategies(body: StrategyIn):
         conn.close()
 
     if strategy.enabled and scheduler_service is not None:
-        scheduler_service.add_strategy_job(strategy)
+        try:
+            scheduler_service.add_strategy_job(strategy)
+        except Exception:
+            logger.exception("failed to schedule strategy id=%s on create", strategy.id)
+            _set_enabled(strategy.id, uid, False)
+            raise HTTPException(500, "Strategy saved but could not be scheduled")
 
     return strategy
 
@@ -221,7 +253,12 @@ def put_strategies(strategy_id: str, body: StrategyIn):
 
     if scheduler_service is not None:
         if strategy.enabled:
-            scheduler_service.add_strategy_job(strategy)
+            try:
+                scheduler_service.add_strategy_job(strategy)
+            except Exception:
+                logger.exception("failed to schedule strategy id=%s on update", strategy.id)
+                _set_enabled(strategy.id, uid, False)
+                raise HTTPException(500, "Strategy saved but could not be scheduled")
         else:
             scheduler_service.remove_strategy_job(strategy_id)
 
@@ -291,8 +328,14 @@ def get_scans(strategy_id: str | None = None, limit: int = Query(50, ge=1, le=50
 
 @app.get("/scans/{run_id}/results")
 def get_scan_results(run_id: str):
+    uid = auth.user_id_var.get()
     conn = schema.conn()
     try:
+        run_row = conn.execute(
+            "SELECT id FROM scan_runs WHERE id = ? AND user_id = ?", (run_id, uid)
+        ).fetchone()
+        if run_row is None:
+            raise HTTPException(404, "Unknown scan run")
         rows = conn.execute("SELECT * FROM scan_results WHERE run_id = ?", (run_id,)).fetchall()
     finally:
         conn.close()
