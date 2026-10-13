@@ -448,17 +448,11 @@ def run_now(strategy_id: str):
     strategy = _get_strategy_or_404(strategy_id, uid)
     if scheduler_service is None:
         raise HTTPException(500, "Scheduler not initialized")
-    scheduler_service.run_now(strategy)
-
-    conn = schema.conn()
-    try:
-        row = conn.execute(
-            "SELECT id FROM scan_runs WHERE strategy_id = ? ORDER BY started_at DESC LIMIT 1",
-            (strategy_id,),
-        ).fetchone()
-    finally:
-        conn.close()
-    return {"run_id": row["id"] if row else None}
+    # run_now always scans fresh and returns the NEW run's id directly - it
+    # must not be confused with "fetch whatever the most recent run happens
+    # to be", which could silently return a stale run from earlier today.
+    run_id = scheduler_service.run_now(strategy)
+    return {"run_id": run_id}
 
 
 # --------------------------------------------------------------------------

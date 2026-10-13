@@ -114,7 +114,11 @@ def test_scheduler_service_remove_job_is_safe_when_absent(tmp_db_path):
         service.shutdown()
 
 
-def test_run_now_dedupes_against_same_day_slot(tmp_db_path, monkeypatch):
+def test_run_now_does_not_dedupe_against_same_day_slot(tmp_db_path, monkeypatch):
+    # Regression: run_now previously shared run_scheduled_scan's
+    # once-per-IST-day slot, so a second manual "Run Now" click on the same
+    # day silently did nothing and the API returned the FIRST run's stale
+    # id - clicking "Run Now" must always scan fresh.
     schema.init_db()
     calls = []
     monkeypatch.setattr("scheduler.jobs.run_scan", lambda s: calls.append(s) or [])
@@ -123,6 +127,55 @@ def test_run_now_dedupes_against_same_day_slot(tmp_db_path, monkeypatch):
     try:
         service.run_now(strategy)
         service.run_now(strategy)
-        assert len(calls) == 1
+        assert len(calls) == 2
     finally:
         service.shutdown()
+
+
+def test_run_now_returns_a_fresh_run_id_each_call(tmp_db_path, monkeypatch):
+    schema.init_db()
+    monkeypatch.setattr("scheduler.jobs.run_scan", lambda s: [])
+    strategy = _sample_strategy()
+    service = SchedulerService()
+    try:
+        run_id_1 = service.run_now(strategy)
+        run_id_2 = service.run_now(strategy)
+        assert run_id_1 is not None
+        assert run_id_2 is not None
+        assert run_id_1 != run_id_2
+
+        conn = schema.conn()
+        try:
+            runs = conn.execute(
+                "SELECT id FROM scan_runs WHERE strategy_id = ? ORDER BY started_at", (strategy.id,)
+            ).fetchall()
+        finally:
+            conn.close()
+        assert [r["id"] for r in runs] == [run_id_1, run_id_2]
+    finally:
+        service.shutdown()
+
+
+def test_run_now_still_works_after_the_scheduled_slot_is_taken(tmp_db_path, monkeypatch):
+    schema.init_db()
+    monkeypatch.setattr("scheduler.jobs.run_scan", lambda s: [])
+    strategy = _sample_strategy()
+
+    # Simulate today's scheduled (cron) run having already claimed the slot.
+    now = datetime.now(IST)
+    assert try_acquire_slot(slot_key(strategy.id, now)) is True
+
+    service = SchedulerService()
+    try:
+        run_id = service.run_now(strategy)
+        assert run_id is not None
+    finally:
+        service.shutdown()
+
+
+def test_run_scheduled_scan_returns_none_when_slot_already_taken(tmp_db_path, monkeypatch):
+    schema.init_db()
+    monkeypatch.setattr("scheduler.jobs.run_scan", lambda s: [])
+    strategy = _sample_strategy()
+    assert run_scheduled_scan(strategy) is not None
+    assert run_scheduled_scan(strategy) is None  # same-day re-fire is a no-op

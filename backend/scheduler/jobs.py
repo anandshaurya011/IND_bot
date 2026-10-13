@@ -50,19 +50,31 @@ def try_acquire_slot(key: str) -> bool:
         conn.close()
 
 
-def run_scheduled_scan(strategy: Strategy) -> None:
+def run_scheduled_scan(strategy: Strategy) -> str | None:
     """Run `strategy`'s scan, deduped per IST calendar day via `try_acquire_slot`.
 
-    If the slot for "now" is already taken (e.g. this is a restart re-firing
-    the same day's job, or a manual run-now already claimed it), logs and
-    returns without scanning or writing any rows.
+    This dedupe exists for the CRON-triggered path only: it stops a server
+    restart from re-firing the same day's scheduled job a second time. If
+    the slot for "now" is already taken, logs and returns None without
+    scanning or writing any rows. Returns the new run's id on success.
+
+    Manual "Run Now" does NOT go through this - see `_execute_scan` /
+    `SchedulerService.run_now`, which always scans fresh regardless of
+    whether today's scheduled slot was already used.
     """
     now = datetime.now(IST)
     key = slot_key(strategy.id, now)
     if not try_acquire_slot(key):
         logger.info("skipping scan for strategy=%s: slot %s already taken", strategy.id, key)
-        return
+        return None
+    return _execute_scan(strategy)
 
+
+def _execute_scan(strategy: Strategy) -> str:
+    """Run `strategy`'s scan and persist the results, unconditionally (no
+    dedupe/slot check - callers that need the once-per-day guard use
+    `run_scheduled_scan` instead). Returns the new run's id.
+    """
     run_id = str(uuid.uuid4())
     started_at = int(time.time())
     conn = schema.conn()
@@ -92,7 +104,7 @@ def run_scheduled_scan(strategy: Strategy) -> None:
                 "status, instruments_scanned, matches_count, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (run_id, strategy.user_id, strategy.id, started_at, int(time.time()), "error", 0, 0, str(exc)),
             )
-            return
+            return run_id
 
         matches_count = sum(1 for row in rows if row.satisfied)
         conn.execute(
@@ -138,6 +150,8 @@ def run_scheduled_scan(strategy: Strategy) -> None:
     finally:
         conn.close()
 
+    return run_id
+
 
 def _build_trigger(strategy: Strategy) -> CronTrigger:
     hour_str, minute_str = strategy.scan_time.split(":")
@@ -168,14 +182,15 @@ class SchedulerService:
         if job is not None:
             self._scheduler.remove_job(strategy_id)
 
-    def run_now(self, strategy: Strategy) -> None:
-        """Run `strategy` immediately, bypassing the cron trigger.
-
-        Still goes through `try_acquire_slot` using the current time's slot
-        key, so a manual run-now right before/after the scheduled time still
-        dedupes against it.
+    def run_now(self, strategy: Strategy) -> str:
+        """Run `strategy` immediately, bypassing both the cron trigger AND
+        the once-per-IST-day slot dedupe - a user clicking "Run Now" wants
+        a genuinely fresh scan every time, even if today's scheduled slot
+        was already used (that dedupe exists only to stop a server restart
+        from re-firing the same cron job twice, not to limit manual runs).
+        Returns the new run's id.
         """
-        run_scheduled_scan(strategy)
+        return _execute_scan(strategy)
 
     def next_run_time(self, strategy_id: str) -> datetime | None:
         job = self._scheduler.get_job(strategy_id)

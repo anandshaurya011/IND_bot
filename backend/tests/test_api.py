@@ -88,6 +88,31 @@ def test_create_strategy_run_now_and_history(client, monkeypatch):
     assert results[0]["symbol"] == "RELIANCE"
 
 
+def test_run_now_twice_same_day_returns_two_fresh_runs(client, monkeypatch):
+    # Regression: run-now previously shared the scheduled job's once-per-day
+    # dedupe slot, so a second click on the same day returned the SAME
+    # (stale) run_id instead of actually scanning again.
+    import scanner.engine as engine_module
+    import scheduler.jobs as jobs_module
+
+    monkeypatch.setattr(engine_module, "run_scan", lambda strategy: [])
+    monkeypatch.setattr(jobs_module, "run_scan", lambda strategy: [])
+
+    body = _valid_strategy_body()
+    resp = client.post("/strategies", json=body)
+    strategy_id = resp.json()["id"]
+
+    run_id_1 = client.post(f"/strategies/{strategy_id}/run-now").json()["run_id"]
+    run_id_2 = client.post(f"/strategies/{strategy_id}/run-now").json()["run_id"]
+
+    assert run_id_1 is not None
+    assert run_id_2 is not None
+    assert run_id_1 != run_id_2
+
+    runs = client.get("/scans", params={"strategy_id": strategy_id}).json()
+    assert {r["id"] for r in runs} == {run_id_1, run_id_2}
+
+
 def test_dashboard_reports_market_status(client):
     resp = client.get("/dashboard")
     assert resp.status_code == 200
