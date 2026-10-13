@@ -120,7 +120,7 @@ export default function StrategiesPage() {
                         {runningId === s.id ? "Running..." : "Run now"}
                       </button>
                       {runLinks[s.id] && (
-                        <Link href={`/strategies/${s.id}/scans/${runLinks[s.id]}`}>View results</Link>
+                        <Link href={`/scans/${runLinks[s.id]}`}>View results</Link>
                       )}
                     </div>
                   </td>
