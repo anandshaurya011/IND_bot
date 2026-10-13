@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtIST } from "@/lib/format";
@@ -141,7 +142,9 @@ export default function WatchlistPage() {
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.symbol}>
-                    <td style={{ textAlign: "left" }}>{row.symbol}</td>
+                    <td style={{ textAlign: "left" }}>
+                      <Link href={`/instruments/${row.symbol}`}>{row.symbol}</Link>
+                    </td>
                     <td style={{ textAlign: "left" }}>{row.name}</td>
                     <td>
                       <Tag

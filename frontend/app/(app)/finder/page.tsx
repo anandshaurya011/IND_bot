@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Instrument, WatchlistEntry } from "@/lib/types";
 import { Tag } from "@/components/Ui";
 import { UniverseChips } from "@/components/UniverseChips";
 
+type KindFilter = "all" | "stock" | "index";
+
 export default function FinderPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [selectedUniverses, setSelectedUniverses] = useState<Set<string>>(new Set());
 
   const universeQuery = useQuery({
@@ -53,15 +57,24 @@ export default function FinderPage() {
         bySymbol.set(inst.symbol, inst);
       }
     }
-    const q = search.trim().toLowerCase();
-    const all = Array.from(bySymbol.values());
-    const filtered = q
-      ? all.filter(
-          (inst) => inst.symbol.toLowerCase().includes(q) || inst.name.toLowerCase().includes(q)
-        )
+    let all = Array.from(bySymbol.values());
+    if (kindFilter !== "all") {
+      all = all.filter((inst) => inst.kind === kindFilter);
+    }
+
+    // Deeper search: split the query into whitespace-separated tokens and
+    // require every token to match SOMEWHERE in "symbol + name" - this lets
+    // "hdfc bank" or "tata motors" match across the combined text rather
+    // than requiring the whole phrase to appear verbatim in one field.
+    const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered = tokens.length
+      ? all.filter((inst) => {
+          const haystack = `${inst.symbol} ${inst.name}`.toLowerCase();
+          return tokens.every((t) => haystack.includes(t));
+        })
       : all;
     return filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
-  }, [universeQuery.data, selectedUniverses, search]);
+  }, [universeQuery.data, selectedUniverses, search, kindFilter]);
 
   const addMutation = useMutation({
     mutationFn: (symbol: string) => api("POST", "/watchlist", { symbol }),
@@ -93,8 +106,16 @@ export default function FinderPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search symbol or name"
+              placeholder="Search symbol or name (e.g. &quot;hdfc bank&quot;)"
             />
+          </label>
+          <label>
+            Kind
+            <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as KindFilter)}>
+              <option value="all">All</option>
+              <option value="stock">Stocks</option>
+              <option value="index">Indices</option>
+            </select>
           </label>
         </div>
         {isLoading && <p>Loading...</p>}
@@ -116,7 +137,9 @@ export default function FinderPage() {
                   const added = watchlistSymbols.has(inst.symbol);
                   return (
                     <tr key={inst.symbol}>
-                      <td style={{ textAlign: "left" }}>{inst.symbol}</td>
+                      <td style={{ textAlign: "left" }}>
+                        <Link href={`/instruments/${inst.symbol}`}>{inst.symbol}</Link>
+                      </td>
                       <td style={{ textAlign: "left" }}>{inst.name}</td>
                       <td>
                         <Tag text={inst.kind} cls={inst.kind === "stock" ? "g" : "w"} />

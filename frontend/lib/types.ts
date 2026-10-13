@@ -78,3 +78,27 @@ export interface WatchlistEntry {
   symbol: string;
   added_at: number;
 }
+
+export interface Candle {
+  ts: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface IndicatorOverlay {
+  indicator: string;
+  params: Record<string, number>;
+  strategy_name: string;
+  values: { ts: number; value: number | null }[];
+}
+
+export interface InstrumentCandlesResponse {
+  symbol: string;
+  instrument: Instrument;
+  provider: string;
+  candles: Candle[];
+  overlay: IndicatorOverlay | null;
+}

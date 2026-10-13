@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tag } from "@/components/Ui";
 import { api } from "@/lib/api";
@@ -85,7 +86,9 @@ export function ScanResultsTable({ results }: { results: ScanResultRow[] }) {
                 const added = watchlistSymbols.has(r.symbol);
                 return (
                 <tr key={r.symbol}>
-                  <td style={{ textAlign: "left" }}>{r.symbol}</td>
+                  <td style={{ textAlign: "left" }}>
+                    <Link href={`/instruments/${r.symbol}`}>{r.symbol}</Link>
+                  </td>
                   <td>{r.kind}</td>
                   <td>
                     {r.satisfied ? <Tag text="Match" cls="g" /> : <Tag text="No match" cls="d" />}

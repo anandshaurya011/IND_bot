@@ -151,8 +151,35 @@ export function StrategyForm({
         {universeQuery.isLoading && <p>Loading universes...</p>}
         {universeQuery.isError && <p>Failed to load universes.</p>}
         {universeNames.length > 0 && (
-          <UniverseChips universeNames={universeNames} selected={universe} onChange={setUniverse} />
+          <UniverseChips
+            universeNames={universeNames}
+            selected={universe}
+            // UniverseChips rebuilds the whole selected Set (e.g. its "All"
+            // toggle does `new Set(universeNames)`), which would silently
+            // drop "watchlist" since it isn't one of universeNames. Preserve
+            // it across whatever UniverseChips sets.
+            onChange={(next) => {
+              const merged = new Set(next);
+              if (universe.has("watchlist")) merged.add("watchlist");
+              setUniverse(merged);
+            }}
+          />
         )}
+        <label style={{ marginTop: "0.5rem", flexDirection: "row", alignItems: "center", gap: "0.4rem" }}>
+          <input
+            type="checkbox"
+            checked={universe.has("watchlist")}
+            onChange={(e) => {
+              setUniverse((prev) => {
+                const next = new Set(prev);
+                if (e.target.checked) next.add("watchlist");
+                else next.delete("watchlist");
+                return next;
+              });
+            }}
+          />
+          Also scan my watchlist (scanned first, regardless of other universes picked above)
+        </label>
       </div>
 
       <label>
