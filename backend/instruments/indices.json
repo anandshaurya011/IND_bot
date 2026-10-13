@@ -1,10 +1,10 @@
 {
   "_meta": {
     "as_of": "2026-10-14",
-    "source": "yfinance tickers individually verified live (fast_info/longName) against Yahoo Finance; SENSEX is BSE's headline index, included as the one widely-tracked non-NSE Indian index",
-    "fetched_at": "2026-10-13T21:36:58.378969+00:00",
-    "count": 30,
-    "note": "NIFTYFIN corrected from a prior mislabeled ticker (^CNXFIN, which Yahoo's own metadata identifies as 'NIFTY FINSRV25 50', a different index) to NIFTY_FIN_SERVICE.NS, the actual Nifty Financial Services index."
+    "source": "yfinance tickers individually verified live (fast_info/longName AND >=100 rows of daily history over a 400-day window) against Yahoo Finance",
+    "fetched_at": "2026-10-13T21:43:00.791890+00:00",
+    "count": 12,
+    "note": "Excluded 18 otherwise-valid NSE sectoral/thematic index tickers because Yahoo Finance only exposes a current quote for them (1 row of 'history' no matter the lookback window requested), not a real daily candle series - EMA/VWMA/any lookback indicator can never compute for them, so including them would just show null indicator values forever. Excluded: NIFTYFIN (NIFTY_FIN_SERVICE.NS), NIFTYSMALLCAP100 (^CNXSC), NIFTYAUTO (^CNXAUTO), NIFTYFMCG (^CNXFMCG), NIFTYMETAL (^CNXMETAL), NIFTYREALTY (^CNXREALTY), NIFTYENERGY (^CNXENERGY), NIFTYMEDIA (^CNXMEDIA), NIFTYPSE (^CNXPSE), NIFTYPSUBANK (^CNXPSUBANK), NIFTYPVTBANK (NIFTY_PVT_BANK.NS), NIFTYINFRA (^CNXINFRA), NIFTYSERVICES (^CNXSERVICE), NIFTYMNC (^CNXMNC), NIFTYHEALTHCARE (NIFTY_HEALTHCARE.NS), NIFTYOILGAS (NIFTY_OIL_AND_GAS.NS), NIFTYCONSRDURBL (NIFTY_CONSR_DURBL.NS), NIFTYINDIADIGITAL (NIFTY_IND_DIGITAL.NS). Re-check with scripts/refresh_instrument_lists.py-style verification if Yahoo ever backfills history for these."
   },
   "constituents": [
     {
@@ -26,13 +26,6 @@
       "name": "Nifty IT",
       "yf_ticker": "^CNXIT",
       "nse_symbol": "NIFTY IT",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYFIN",
-      "name": "Nifty Financial Services",
-      "yf_ticker": "NIFTY_FIN_SERVICE.NS",
-      "nse_symbol": "NIFTY FIN SERVICE",
       "kind": "index"
     },
     {
@@ -71,13 +64,6 @@
       "kind": "index"
     },
     {
-      "symbol": "NIFTYSMALLCAP100",
-      "name": "Nifty Smallcap 100",
-      "yf_ticker": "^CNXSC",
-      "nse_symbol": "NIFTY SMLCAP 100",
-      "kind": "index"
-    },
-    {
       "symbol": "NIFTYSMALLCAP250",
       "name": "Nifty Smallcap 250",
       "yf_ticker": "NIFTYSMLCAP250.NS",
@@ -85,122 +71,10 @@
       "kind": "index"
     },
     {
-      "symbol": "NIFTYAUTO",
-      "name": "Nifty Auto",
-      "yf_ticker": "^CNXAUTO",
-      "nse_symbol": "NIFTY AUTO",
-      "kind": "index"
-    },
-    {
       "symbol": "NIFTYPHARMA",
       "name": "Nifty Pharma",
       "yf_ticker": "^CNXPHARMA",
       "nse_symbol": "NIFTY PHARMA",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYFMCG",
-      "name": "Nifty FMCG",
-      "yf_ticker": "^CNXFMCG",
-      "nse_symbol": "NIFTY FMCG",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYMETAL",
-      "name": "Nifty Metal",
-      "yf_ticker": "^CNXMETAL",
-      "nse_symbol": "NIFTY METAL",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYREALTY",
-      "name": "Nifty Realty",
-      "yf_ticker": "^CNXREALTY",
-      "nse_symbol": "NIFTY REALTY",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYENERGY",
-      "name": "Nifty Energy",
-      "yf_ticker": "^CNXENERGY",
-      "nse_symbol": "NIFTY ENERGY",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYMEDIA",
-      "name": "Nifty Media",
-      "yf_ticker": "^CNXMEDIA",
-      "nse_symbol": "NIFTY MEDIA",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYPSE",
-      "name": "Nifty PSE",
-      "yf_ticker": "^CNXPSE",
-      "nse_symbol": "NIFTY PSE",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYPSUBANK",
-      "name": "Nifty PSU Bank",
-      "yf_ticker": "^CNXPSUBANK",
-      "nse_symbol": "NIFTY PSU BANK",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYPVTBANK",
-      "name": "Nifty Private Bank",
-      "yf_ticker": "NIFTY_PVT_BANK.NS",
-      "nse_symbol": "NIFTY PVT BANK",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYINFRA",
-      "name": "Nifty Infrastructure",
-      "yf_ticker": "^CNXINFRA",
-      "nse_symbol": "NIFTY INFRA",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYSERVICES",
-      "name": "Nifty Services Sector",
-      "yf_ticker": "^CNXSERVICE",
-      "nse_symbol": "NIFTY SERV SECTOR",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYMNC",
-      "name": "Nifty MNC",
-      "yf_ticker": "^CNXMNC",
-      "nse_symbol": "NIFTY MNC",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYHEALTHCARE",
-      "name": "Nifty Healthcare Index",
-      "yf_ticker": "NIFTY_HEALTHCARE.NS",
-      "nse_symbol": "NIFTY HEALTHCARE",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYOILGAS",
-      "name": "Nifty Oil & Gas",
-      "yf_ticker": "NIFTY_OIL_AND_GAS.NS",
-      "nse_symbol": "NIFTY OIL AND GAS",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYCONSRDURBL",
-      "name": "Nifty Consumer Durables",
-      "yf_ticker": "NIFTY_CONSR_DURBL.NS",
-      "nse_symbol": "NIFTY CONSR DURBL",
-      "kind": "index"
-    },
-    {
-      "symbol": "NIFTYINDIADIGITAL",
-      "name": "Nifty India Digital",
-      "yf_ticker": "NIFTY_IND_DIGITAL.NS",
-      "nse_symbol": "NIFTY IND DIGITAL",
       "kind": "index"
     },
     {

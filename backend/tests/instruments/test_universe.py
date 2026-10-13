@@ -23,22 +23,29 @@ def test_niftyit_has_stock_instruments():
 
 
 def test_indices_universe_has_index_instruments():
-    # indices.json is now a broad, individually-verified set of NSE/BSE
-    # indices (broad-market + sectoral + strategy), not just the original 4.
+    # indices.json is a broader set of NSE/BSE indices than the original 4,
+    # but deliberately excludes tickers yfinance only exposes a current
+    # quote for (no real daily history -> indicators can never compute) -
+    # see indices.json's "_meta.note" for the excluded list and why.
     insts = list_universe("indices")
-    assert len(insts) >= 25
+    assert len(insts) >= 10
     assert all(i.kind == "index" for i in insts)
     symbols = {i.symbol for i in insts}
-    assert {"NIFTY50", "BANKNIFTY", "NIFTYIT", "NIFTYFIN", "NIFTYAUTO", "SENSEX"} <= symbols
+    assert {"NIFTY50", "BANKNIFTY", "NIFTYIT", "SENSEX"} <= symbols
 
 
-def test_nifty_financial_services_uses_the_correct_ticker():
-    # Regression: this was previously mislabeled with ^CNXFIN, a ticker that
-    # Yahoo Finance's own metadata identifies as a DIFFERENT index ("NIFTY
-    # FINSRV25 50"), not Nifty Financial Services.
-    inst = resolve("NIFTYFIN")
-    assert inst is not None
-    assert inst.yf_ticker == "NIFTY_FIN_SERVICE.NS"
+def test_indices_universe_excludes_quote_only_tickers():
+    # Regression: NIFTYFIN (and 17 other sectoral tickers) were briefly
+    # included after the indices-list expansion, but yfinance only ever
+    # returns ONE row of "history" for them regardless of lookback window -
+    # a strategy scanning them would always show satisfied=False with every
+    # indicator value null, which looks broken even though it's technically
+    # "never fabricate a value" working as designed. Dropped until yfinance
+    # (or a future provider) actually backs them with real daily candles.
+    insts = list_universe("indices")
+    symbols = {i.symbol for i in insts}
+    assert "NIFTYFIN" not in symbols
+    assert "NIFTYAUTO" not in symbols
 
 
 def test_all_stocks_is_deduped_union():
