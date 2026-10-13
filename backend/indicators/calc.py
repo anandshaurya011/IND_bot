@@ -92,9 +92,14 @@ def bollinger(df: pd.DataFrame, length: int = 20, std: int = 2) -> pd.DataFrame:
 
 
 def adx(df: pd.DataFrame, length: int = 14) -> pd.Series:
-    return ta.trend.ADXIndicator(
+    result = ta.trend.ADXIndicator(
         high=df["high"], low=df["low"], close=df["close"], window=length
     ).adx()
+    # ta's ADXIndicator zero-fills its warm-up rows (no NaN emitted natively),
+    # so the warm-up window must be forced to NaN explicitly here to avoid
+    # fabricating a "no trend" (0.0) value where there isn't enough lookback.
+    result.iloc[: length - 1] = float("nan")
+    return result
 
 
 def supertrend(df: pd.DataFrame, length: int = 10, multiplier: int = 3) -> pd.DataFrame:
@@ -110,6 +115,14 @@ def supertrend(df: pd.DataFrame, length: int = 10, multiplier: int = 3) -> pd.Da
     atr = ta.volatility.AverageTrueRange(
         high=high, low=low, close=close, window=length
     ).average_true_range()
+    # ta's AverageTrueRange zero-fills its warm-up rows (no NaN emitted
+    # natively), so the warm-up window must be forced to NaN by row position
+    # explicitly here - relying on atr.isna() downstream would be vacuous
+    # since the library never actually produces NaN.
+    warmup_mask = pd.Series(False, index=df.index)
+    warmup_mask.iloc[: length - 1] = True
+    atr = atr.copy()
+    atr[warmup_mask] = float("nan")
 
     hl2 = (high + low) / 2
     basic_upper = hl2 + multiplier * atr
@@ -158,10 +171,11 @@ def supertrend(df: pd.DataFrame, length: int = 10, multiplier: int = 3) -> pd.Da
 
         supertrend_line.iloc[i] = final_lower.iloc[i] if direction.iloc[i] == 1 else final_upper.iloc[i]
 
-    # Rows where ATR is NaN (insufficient lookback) have no real SuperTrend value.
-    supertrend_line[atr.isna()] = float("nan")
+    # Rows within the ATR warm-up window (by position, not by trusting the
+    # library to emit NaN - it doesn't) have no real SuperTrend value.
+    supertrend_line[warmup_mask] = float("nan")
     direction_result = direction.astype("float64")
-    direction_result[atr.isna()] = float("nan")
+    direction_result[warmup_mask] = float("nan")
 
     return pd.DataFrame({"supertrend": supertrend_line, "direction": direction_result}, index=df.index)
 

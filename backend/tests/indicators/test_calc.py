@@ -97,6 +97,9 @@ def test_adx_dtype():
     df = to_dataframe(candles)
     result = adx(df, 14)
     assert isinstance(result, pd.Series)
+    # warm-up window (first length-1 rows) must be NaN, not ta's fabricated 0.0
+    assert pd.isna(result.iloc[0])
+    assert pd.isna(result.iloc[12])
     valid = result.dropna()
     assert (valid >= 0).all()
 
@@ -106,6 +109,12 @@ def test_supertrend_columns_and_direction_values():
     df = to_dataframe(candles)
     result = supertrend(df, length=10, multiplier=3)
     assert list(result.columns) == ["supertrend", "direction"]
+    # warm-up window (first length-1 rows) must be NaN, not a fabricated
+    # value derived from ta's zero-filled ATR.
+    assert pd.isna(result["supertrend"].iloc[0])
+    assert pd.isna(result["direction"].iloc[0])
+    assert pd.isna(result["supertrend"].iloc[8])
+    assert pd.isna(result["direction"].iloc[8])
     valid_direction = result["direction"].dropna()
     assert set(valid_direction.unique()).issubset({1.0, -1.0})
 
