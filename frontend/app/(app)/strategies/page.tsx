@@ -8,7 +8,7 @@ import type { Strategy } from "@/lib/types";
 
 export default function StrategiesPage() {
   const queryClient = useQueryClient();
-  const [runningId, setRunningId] = useState<string | null>(null);
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
   const [runLinks, setRunLinks] = useState<Record<string, string>>({});
 
   const { data, isLoading, isError } = useQuery({
@@ -43,14 +43,18 @@ export default function StrategiesPage() {
   });
 
   async function handleRunNow(id: string) {
-    setRunningId(id);
+    setRunningIds((prev) => new Set(prev).add(id));
     try {
       const result = await api<{ run_id: string | null }>("POST", `/strategies/${id}/run-now`);
       if (result.run_id) {
         setRunLinks((prev) => ({ ...prev, [id]: result.run_id as string }));
       }
     } finally {
-      setRunningId(null);
+      setRunningIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -115,9 +119,9 @@ export default function StrategiesPage() {
                         type="button"
                         className="btn ghost sm"
                         onClick={() => handleRunNow(s.id)}
-                        disabled={runningId === s.id}
+                        disabled={runningIds.has(s.id)}
                       >
-                        {runningId === s.id ? "Running..." : "Run now"}
+                        {runningIds.has(s.id) ? "Running..." : "Run now"}
                       </button>
                       {runLinks[s.id] && (
                         <Link href={`/scans/${runLinks[s.id]}`}>View results</Link>
