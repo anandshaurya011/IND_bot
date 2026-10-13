@@ -13,6 +13,8 @@ and sends browser-like headers (User-Agent, Accept, Referer, etc).
 from __future__ import annotations
 
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -29,6 +31,20 @@ _HEADERS = {
     "Referer": "https://www.nseindia.com/",
 }
 _ONE_DAY_SECONDS = 24 * 60 * 60
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+def _parse_ist(value: str, fmt: str) -> int:
+    """Parse an NSE date/time string as IST wall-clock time and return epoch seconds.
+
+    NSE's timestamps are always IST. Using `time.mktime` would interpret the
+    parsed struct in the host machine's local timezone, silently shifting
+    every value on a non-IST host (e.g. a UTC container). We parse naively
+    then explicitly localize to Asia/Kolkata.
+    """
+    naive = datetime.strptime(value, fmt)
+    aware = naive.replace(tzinfo=_IST)
+    return int(aware.timestamp())
 
 
 def _new_session() -> httpx.Client:
@@ -62,10 +78,9 @@ class NSEProvider(Provider):
         candles: list[Candle] = []
         for row in rows[-lookback_days:] if lookback_days else rows:
             try:
-                ts_struct = time.strptime(row["CH_TIMESTAMP"], "%Y-%m-%d")
                 candles.append(
                     Candle(
-                        ts=int(time.mktime(ts_struct)),
+                        ts=_parse_ist(row["CH_TIMESTAMP"], "%Y-%m-%d"),
                         open=float(row["CH_OPENING_PRICE"]),
                         high=float(row["CH_TRADE_HIGH_PRICE"]),
                         low=float(row["CH_TRADE_LOW_PRICE"]),
@@ -101,7 +116,7 @@ class NSEProvider(Provider):
         ts = None
         if last_update:
             try:
-                ts = int(time.mktime(time.strptime(last_update, "%d-%b-%Y %H:%M:%S")))
+                ts = _parse_ist(last_update, "%d-%b-%Y %H:%M:%S")
             except ValueError:
                 ts = None
 
