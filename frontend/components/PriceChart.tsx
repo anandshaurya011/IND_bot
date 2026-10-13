@@ -83,8 +83,8 @@ export function PriceChart({
   return (
     <div>
       <svg width={WIDTH} height={HEIGHT} role="img" aria-label="Price chart">
-        {chart.yTicks.map((v) => (
-          <g key={v}>
+        {chart.yTicks.map((v, i) => (
+          <g key={i}>
             <line
               x1={PADDING.left}
               x2={WIDTH - PADDING.right}
@@ -111,8 +111,8 @@ export function PriceChart({
             />
           ) : null,
         )}
-        {chart.xTickIdx.map((i) => (
-          <text key={i} x={chart.xFor(i)} y={HEIGHT - 6} fontSize={10} fill="var(--dim)" textAnchor="middle">
+        {chart.xTickIdx.map((i, tickIdx) => (
+          <text key={tickIdx} x={chart.xFor(i)} y={HEIGHT - 6} fontSize={10} fill="var(--dim)" textAnchor="middle">
             {fmtIST(candles[i].ts, { month: "short", day: "numeric", hour: undefined, minute: undefined, year: undefined })}
           </text>
         ))}
