@@ -70,8 +70,8 @@ export interface DashboardResponse {
 export interface Settings {
   telegram_chat_id: string | null;
   telegram_bot_token_configured: boolean;
-  active_provider: string;
-  updated_at: number;
+  active_provider: string | null;
+  updated_at: number | null;
 }
 
 export interface WatchlistEntry {
