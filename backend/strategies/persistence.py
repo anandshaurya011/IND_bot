@@ -69,6 +69,9 @@ def validate_strategy(s: Strategy) -> list[str]:
             f"{s.timeframe!r}"
         )
 
+    if len(s.universe) == 0:
+        errors.append("universe must not be empty; select at least one universe to scan")
+
     for universe_name in s.universe:
         if universe_name not in VALID_UNIVERSE_NAMES:
             errors.append(

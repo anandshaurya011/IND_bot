@@ -89,3 +89,9 @@ def test_validate_strategy_rejects_unknown_universe_name():
     s = Strategy(**_base_kwargs(universe=["not_a_real_universe"]))
     errors = validate_strategy(s)
     assert any("not_a_real_universe" in e for e in errors)
+
+
+def test_validate_strategy_rejects_empty_universe():
+    s = Strategy(**_base_kwargs(universe=[]))
+    errors = validate_strategy(s)
+    assert any("universe" in e and "empty" in e for e in errors)
