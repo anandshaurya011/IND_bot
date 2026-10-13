@@ -218,3 +218,28 @@ def test_run_scan_paces_requests_between_instruments(monkeypatch):
 
     # 3 instruments -> 2 inter-instrument pauses (no delay before the first).
     assert sleep_calls == [0.35, 0.35]
+
+
+def test_resolve_universe_watchlist_symbols_come_first(monkeypatch, tmp_db_path):
+    from database import schema
+
+    schema.init_db()
+    conn = schema.conn()
+    conn.execute(
+        "INSERT INTO watchlist (user_id, symbol, added_at) VALUES (?, ?, ?)",
+        ("user-1", "PARTIAL", 1),
+    )
+    conn.close()
+    monkeypatch.setattr("scanner.engine.resolve", lambda symbol: _INSTRUMENTS.get(f"{symbol}.NS"))
+
+    strategy = _make_strategy(min_consecutive_sessions=1)
+    strategy = strategy.model_copy(update={"universe": ["fake_universe", "watchlist"]})
+
+    from scanner.engine import _resolve_universe
+
+    instruments = _resolve_universe(strategy)
+    symbols = [i.symbol for i in instruments]
+    # PARTIAL is in both "watchlist" and "fake_universe" - watchlist membership
+    # should put it first regardless of "watchlist"'s position in strategy.universe.
+    assert symbols[0] == "PARTIAL"
+    assert set(symbols) == {"OK", "PARTIAL", "FAIL"}

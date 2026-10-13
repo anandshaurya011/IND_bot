@@ -24,10 +24,14 @@ from pydantic import BaseModel
 import auth
 import crypto
 from database import schema
+from indicators import calc
+from market_data import get_provider
+from market_data.base import ProviderError
+from scanner.engine import _INDICATOR_FUNCS, _symbol_for_provider
 from scheduler.jobs import SchedulerService
 from strategies.model import Strategy
 from strategies.persistence import validate_strategy
-from instruments.universe import Instrument, list_universe
+from instruments.universe import Instrument, list_universe, resolve as resolve_instrument
 
 app = FastAPI(
     title="Indian Market Scanner Backend",
@@ -142,6 +146,105 @@ class SettingsIn(BaseModel):
 @app.get("/universe")
 def get_universe() -> dict[str, list[Instrument]]:
     return {name: list_universe(name) for name in UNIVERSE_NAMES}
+
+
+@app.get("/instruments/{symbol}/candles")
+def get_instrument_candles(
+    symbol: str,
+    provider: str = Query("yfinance"),
+    lookback_days: int = Query(180, ge=5, le=1000),
+):
+    """Historical daily candles for one instrument, plus (if available) the
+    indicator overlay from the most recent strategy that matched this symbol
+    for the authenticated user. Never fabricates data: a provider failure
+    is surfaced as a 502, not a guessed candle series.
+    """
+    uid = auth.user_id_var.get()
+    instrument = resolve_instrument(symbol)
+    if instrument is None:
+        raise HTTPException(404, f"unknown instrument {symbol!r}")
+
+    provider_obj = get_provider(provider)
+    provider_symbol = _symbol_for_provider(instrument, provider)
+    try:
+        candles = provider_obj.get_daily_candles(provider_symbol, lookback_days=lookback_days)
+    except ProviderError as exc:
+        raise HTTPException(502, f"could not fetch candle data: {exc}") from exc
+
+    candle_rows = [
+        {"ts": c.ts, "open": c.open, "high": c.high, "low": c.low, "close": c.close, "volume": c.volume}
+        for c in candles
+    ]
+
+    overlay = _last_matching_overlay(uid, symbol, candles)
+
+    return {
+        "symbol": symbol,
+        "instrument": instrument,
+        "provider": provider,
+        "candles": candle_rows,
+        "overlay": overlay,
+    }
+
+
+def _last_matching_overlay(user_id: str, symbol: str, candles: list) -> dict | None:
+    """Find the most recent `satisfied=1` scan result for this user/symbol,
+    load the strategy that produced it, and compute that strategy's first
+    condition's indicator series over `candles` for a chart overlay.
+    Returns None if there's no matching history or the indicator can't be
+    computed (e.g. not enough candles) - never fabricates an overlay.
+    """
+    conn = schema.conn()
+    try:
+        row = conn.execute(
+            "SELECT sr.run_id, srun.strategy_id, srun.started_at "
+            "FROM scan_results sr JOIN scan_runs srun ON sr.run_id = srun.id "
+            "WHERE srun.user_id = ? AND sr.symbol = ? AND sr.satisfied = 1 "
+            "ORDER BY srun.started_at DESC LIMIT 1",
+            (user_id, symbol),
+        ).fetchone()
+        if row is None:
+            return None
+        strategy_row = conn.execute(
+            "SELECT config_json FROM strategies WHERE id = ? AND user_id = ?",
+            (row["strategy_id"], user_id),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if strategy_row is None:
+        return None
+
+    strategy = Strategy.model_validate_json(strategy_row["config_json"])
+    if not strategy.conditions:
+        return None
+    condition = strategy.conditions[0]
+
+    func = _INDICATOR_FUNCS.get(condition.indicator)
+    if func is None:
+        return None
+
+    df = calc.to_dataframe(candles)
+    try:
+        series = func(df, **condition.params)
+    except Exception:  # noqa: BLE001 - overlay is best-effort, never breaks the chart
+        return None
+    if hasattr(series, "iloc") and series.ndim > 1:
+        # Multi-column indicator output (e.g. macd/bollinger/supertrend) -
+        # use its first column as the overlay line.
+        series = series.iloc[:, 0]
+
+    values = [
+        {"ts": int(ts.timestamp()), "value": None if value != value else float(value)}  # NaN check
+        for ts, value in series.items()
+    ]
+
+    return {
+        "indicator": condition.indicator,
+        "params": condition.params,
+        "strategy_name": strategy.name,
+        "values": values,
+    }
 
 
 # --------------------------------------------------------------------------

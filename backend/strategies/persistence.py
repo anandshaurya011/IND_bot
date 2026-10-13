@@ -8,6 +8,11 @@ from indicators.calc import IndicatorError, validate_indicator_timeframe
 from instruments.universe import VALID_UNIVERSE_NAMES
 from strategies.model import Strategy
 
+# "watchlist" is a special universe name (not in the static instrument-master
+# universes) meaning "scan this user's own saved watchlist symbols first" -
+# resolved per-user at scan time in scanner.engine, not a static JSON list.
+_SPECIAL_UNIVERSE_NAMES = {"watchlist"}
+
 # Hard-coded provider capability map: which providers support intraday
 # timeframes. Consulted alongside `validate_indicator_timeframe` when
 # validating a strategy's provider/timeframe combination.
@@ -73,9 +78,10 @@ def validate_strategy(s: Strategy) -> list[str]:
         errors.append("universe must not be empty; select at least one universe to scan")
 
     for universe_name in s.universe:
-        if universe_name not in VALID_UNIVERSE_NAMES:
+        if universe_name not in VALID_UNIVERSE_NAMES and universe_name not in _SPECIAL_UNIVERSE_NAMES:
             errors.append(
-                f"unknown universe {universe_name!r}; must be one of {VALID_UNIVERSE_NAMES}"
+                f"unknown universe {universe_name!r}; must be one of "
+                f"{VALID_UNIVERSE_NAMES + sorted(_SPECIAL_UNIVERSE_NAMES)}"
             )
 
     scan_time_error = _validate_scan_time(s.scan_time)

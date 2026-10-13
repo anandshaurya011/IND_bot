@@ -154,3 +154,32 @@ def test_unauthenticated_request_rejected():
     with TestClient(main.app) as c:
         resp = c.get("/watchlist")
     assert resp.status_code in (401, 500)
+
+
+def test_get_instrument_candles_returns_404_for_unknown_symbol(client):
+    resp = client.get("/instruments/NOT_A_REAL_SYMBOL/candles")
+    assert resp.status_code == 404
+
+
+def test_get_instrument_candles_returns_candles_and_no_overlay_without_history(client, monkeypatch):
+    import main as main_module
+    from market_data.base import Candle
+
+    class _FakeProvider:
+        name = "yfinance"
+
+        def get_daily_candles(self, symbol, lookback_days):
+            return [
+                Candle(ts=1_700_000_000 + i * 86400, open=100, high=101, low=99, close=100 + i, volume=1000)
+                for i in range(10)
+            ]
+
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeProvider())
+
+    resp = client.get("/instruments/RELIANCE/candles?lookback_days=10")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "RELIANCE"
+    assert len(body["candles"]) == 10
+    # no prior satisfied scan result for this user/symbol -> no overlay, not fabricated
+    assert body["overlay"] is None

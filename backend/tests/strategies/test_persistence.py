@@ -95,3 +95,9 @@ def test_validate_strategy_rejects_empty_universe():
     s = Strategy(**_base_kwargs(universe=[]))
     errors = validate_strategy(s)
     assert any("universe" in e and "empty" in e for e in errors)
+
+
+def test_validate_strategy_accepts_watchlist_universe():
+    s = Strategy(**_base_kwargs(universe=["watchlist"]))
+    errors = validate_strategy(s)
+    assert errors == []

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from indicators import calc
-from instruments.universe import Instrument, list_universe
+from instruments.universe import Instrument, list_universe, resolve
 from market_data import get_provider
 from market_data.base import ProviderError
 from strategies.model import Condition, Strategy
@@ -77,12 +77,49 @@ class ScanResultRow:
     strategy_name: str
 
 
+def _watchlist_instruments(user_id: str) -> list[Instrument]:
+    """The user's saved watchlist, resolved to known Instruments. A watchlist
+    symbol not in the static instrument master (e.g. user typo'd it) is
+    silently skipped here rather than raising - this is a "scan my saved
+    symbols first" convenience, not a strict universe.
+    """
+    from database import schema  # local import: avoids a DB dependency for
+    # every caller of this module that never uses the "watchlist" universe.
+
+    conn = schema.conn()
+    try:
+        rows = conn.execute(
+            "SELECT symbol FROM watchlist WHERE user_id = ? ORDER BY added_at", (user_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    instruments = []
+    for row in rows:
+        instrument = resolve(row["symbol"])
+        if instrument is not None:
+            instruments.append(instrument)
+    return instruments
+
+
 def _resolve_universe(strategy: Strategy) -> list[Instrument]:
     """Union of every named universe in `strategy.universe`, deduped by symbol,
     filtered by `strategy.instrument_type` unless it is "both".
+
+    The special universe name "watchlist" scans the user's own saved
+    watchlist symbols, and - per the "favorites run first" request - those
+    always come first in the returned order regardless of where "watchlist"
+    appears in `strategy.universe`.
     """
     seen: dict[str, Instrument] = {}
+
+    if "watchlist" in strategy.universe:
+        for instrument in _watchlist_instruments(strategy.user_id):
+            seen.setdefault(instrument.symbol, instrument)
+
     for universe_name in strategy.universe:
+        if universe_name == "watchlist":
+            continue
         for instrument in list_universe(universe_name):
             seen.setdefault(instrument.symbol, instrument)
 
