@@ -6,6 +6,6 @@ cryptography
 httpx
 pytest
 pandas
-pandas-ta
+ta
 yfinance
 apscheduler
