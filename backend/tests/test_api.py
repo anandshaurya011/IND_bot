@@ -111,6 +111,30 @@ def test_watchlist_add_list_delete(client):
     assert "RELIANCE" not in symbols
 
 
+def test_settings_telegram_bot_token_configured_flag_independent_of_chat_id(client):
+    # Chat id only, no token -> flag must be False.
+    resp = client.put("/settings", json={"telegram_chat_id": "12345"})
+    assert resp.status_code == 200
+    assert resp.json()["telegram_bot_token_configured"] is False
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["telegram_chat_id"] == "12345"
+    assert body["telegram_bot_token_configured"] is False
+
+    # Now also set a token -> flag must become True, chat id preserved.
+    resp = client.put("/settings", json={"telegram_bot_token": "secret-token"})
+    assert resp.status_code == 200
+    assert resp.json()["telegram_bot_token_configured"] is True
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["telegram_chat_id"] == "12345"
+    assert body["telegram_bot_token_configured"] is True
+
+
 def test_unauthenticated_request_rejected():
     """Without the auth override, real Clerk verification kicks in and 500/401s."""
     from fastapi.testclient import TestClient

@@ -309,7 +309,8 @@ def get_settings():
     conn = schema.conn()
     try:
         row = conn.execute(
-            "SELECT telegram_chat_id, active_provider, updated_at FROM user_settings WHERE user_id = ?",
+            "SELECT telegram_chat_id, telegram_bot_token_enc, active_provider, updated_at "
+            "FROM user_settings WHERE user_id = ?",
             (uid,),
         ).fetchone()
     finally:
@@ -323,7 +324,7 @@ def get_settings():
         }
     return {
         "telegram_chat_id": row["telegram_chat_id"],
-        "telegram_bot_token_configured": bool(row["telegram_chat_id"]),
+        "telegram_bot_token_configured": bool(row["telegram_bot_token_enc"]),
         "active_provider": row["active_provider"],
         "updated_at": row["updated_at"],
     }
