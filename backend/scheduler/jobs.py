@@ -1,0 +1,163 @@
+"""Asia/Kolkata-aware scheduler for strategy scans.
+
+All scheduling/dedupe logic uses `ZoneInfo("Asia/Kolkata")` explicitly - never
+naive or system-local time. `slot_key` gives one lock per strategy per IST
+calendar day, so a restart re-firing the same day's cron job (or a manual
+"run now" shortly before/after the scheduled time) only ever scans once.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from database import schema
+from scanner.engine import run_scan
+from strategies.model import Strategy
+
+logger = logging.getLogger(__name__)
+
+IST = ZoneInfo("Asia/Kolkata")
+
+
+def slot_key(strategy_id: str, scheduled_time: datetime) -> str:
+    """One slot per strategy per IST calendar day."""
+    return f"{strategy_id}:{scheduled_time.astimezone(IST).date()}"
+
+
+def try_acquire_slot(key: str) -> bool:
+    """Attempt to claim `key` in `scheduler_locks`.
+
+    Returns True iff this call inserted the row (i.e. "won" the slot); False
+    if the slot was already taken by a previous call (same process or a prior
+    run before a restart).
+    """
+    conn = schema.conn()
+    try:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO scheduler_locks (slot_key, locked_at) VALUES (?, ?)",
+            (key, int(time.time())),
+        )
+        return cur.rowcount == 1
+    finally:
+        conn.close()
+
+
+def run_scheduled_scan(strategy: Strategy) -> None:
+    """Run `strategy`'s scan, deduped per IST calendar day via `try_acquire_slot`.
+
+    If the slot for "now" is already taken (e.g. this is a restart re-firing
+    the same day's job, or a manual run-now already claimed it), logs and
+    returns without scanning or writing any rows.
+    """
+    now = datetime.now(IST)
+    key = slot_key(strategy.id, now)
+    if not try_acquire_slot(key):
+        logger.info("skipping scan for strategy=%s: slot %s already taken", strategy.id, key)
+        return
+
+    run_id = str(uuid.uuid4())
+    started_at = int(time.time())
+    conn = schema.conn()
+    try:
+        try:
+            rows = run_scan(strategy)
+        except Exception as exc:  # defensive: run_scan should not raise, but
+            # a scheduled run must never crash the scheduler thread.
+            logger.exception("scan failed for strategy=%s", strategy.id)
+            conn.execute(
+                "INSERT INTO scan_runs (id, user_id, strategy_id, started_at, finished_at, "
+                "status, instruments_scanned, matches_count, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (run_id, strategy.user_id, strategy.id, started_at, int(time.time()), "error", 0, 0, str(exc)),
+            )
+            return
+
+        matches_count = sum(1 for row in rows if row.satisfied)
+        conn.execute(
+            "INSERT INTO scan_runs (id, user_id, strategy_id, started_at, finished_at, "
+            "status, instruments_scanned, matches_count, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                strategy.user_id,
+                strategy.id,
+                started_at,
+                int(time.time()),
+                "ok",
+                len(rows),
+                matches_count,
+                None,
+            ),
+        )
+        for row in rows:
+            conn.execute(
+                "INSERT INTO scan_results (run_id, symbol, kind, satisfied, consecutive_sessions, "
+                "latest_price, latest_ts, indicator_values_json, last_candle_date) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    run_id,
+                    row.symbol,
+                    row.kind,
+                    int(row.satisfied),
+                    row.consecutive_sessions,
+                    row.latest_price,
+                    row.latest_ts,
+                    row.indicator_values_json,
+                    row.last_candle_date,
+                ),
+            )
+    finally:
+        conn.close()
+
+
+def _build_trigger(strategy: Strategy) -> CronTrigger:
+    hour_str, minute_str = strategy.scan_time.split(":")
+    hour, minute = int(hour_str), int(minute_str)
+    day_of_week = "*" if strategy.scan_days == "daily" else ",".join(str(d) for d in strategy.scan_days)
+    return CronTrigger(hour=hour, minute=minute, day_of_week=day_of_week, timezone=IST)
+
+
+class SchedulerService:
+    """Wraps an `apscheduler` `BackgroundScheduler` configured for Asia/Kolkata."""
+
+    def __init__(self) -> None:
+        self._scheduler = BackgroundScheduler(timezone=IST)
+        self._scheduler.start(paused=False)
+
+    def add_strategy_job(self, strategy: Strategy) -> None:
+        trigger = _build_trigger(strategy)
+        self._scheduler.add_job(
+            run_scheduled_scan,
+            trigger=trigger,
+            args=[strategy],
+            id=strategy.id,
+            replace_existing=True,
+        )
+
+    def remove_strategy_job(self, strategy_id: str) -> None:
+        job = self._scheduler.get_job(strategy_id)
+        if job is not None:
+            self._scheduler.remove_job(strategy_id)
+
+    def run_now(self, strategy: Strategy) -> None:
+        """Run `strategy` immediately, bypassing the cron trigger.
+
+        Still goes through `try_acquire_slot` using the current time's slot
+        key, so a manual run-now right before/after the scheduled time still
+        dedupes against it.
+        """
+        run_scheduled_scan(strategy)
+
+    def next_run_time(self, strategy_id: str) -> datetime | None:
+        job = self._scheduler.get_job(strategy_id)
+        if job is None:
+            return None
+        return job.next_run_time
+
+    def shutdown(self) -> None:
+        self._scheduler.shutdown(wait=False)

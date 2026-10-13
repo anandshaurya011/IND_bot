@@ -31,3 +31,8 @@ class Strategy(BaseModel):
     min_consecutive_sessions: int
     provider: str
     enabled: bool
+    # Scheduling: time of day (HH:MM, Asia/Kolkata) to run the scan, and which
+    # days it runs on - either every day or a specific set of weekdays
+    # (0=Monday .. 6=Sunday, matching Python's `datetime.weekday()`).
+    scan_time: str = "09:00"
+    scan_days: Literal["daily"] | list[int] = "daily"
