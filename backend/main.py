@@ -180,6 +180,13 @@ def get_instrument_candles(
     except ProviderError as exc:
         raise HTTPException(502, f"could not fetch candle data: {exc}") from exc
 
+    # Drop incomplete trailing candles: yfinance returns a row for the
+    # in-progress session with NaN OHLC (only volume populated so far)
+    # before today's close is known. NaN isn't valid JSON (json.dumps
+    # raises), and a half-formed candle isn't real data to chart anyway -
+    # never fabricate it as a visible gap or a guessed value, just omit it.
+    candles = [c for c in candles if c.close == c.close]  # NaN != NaN
+
     candle_rows = [
         {"ts": c.ts, "open": c.open, "high": c.high, "low": c.low, "close": c.close, "volume": c.volume}
         for c in candles

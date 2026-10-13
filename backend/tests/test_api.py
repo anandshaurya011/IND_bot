@@ -225,3 +225,38 @@ def test_get_instrument_candles_vwap_rolling_overlay_computes_successfully(clien
     # at least the trailing values should be real numbers, not all null
     # (a days= kwarg mismatch would make every value null/absent instead).
     assert any(v["value"] is not None for v in overlays[0]["values"])
+
+
+def test_get_instrument_candles_drops_incomplete_trailing_nan_candle(client, monkeypatch):
+    import main as main_module
+    from market_data.base import Candle
+
+    class _FakeProviderWithTrailingNanCandle:
+        name = "yfinance"
+
+        def get_daily_candles(self, symbol, lookback_days):
+            candles = [
+                Candle(ts=1_700_000_000 + i * 86400, open=100, high=101, low=99, close=100 + i, volume=1000)
+                for i in range(9)
+            ]
+            # yfinance returns a row like this for the in-progress session
+            # before today's OHLC is known - only volume is populated.
+            candles.append(
+                Candle(
+                    ts=1_700_000_000 + 9 * 86400,
+                    open=float("nan"),
+                    high=float("nan"),
+                    low=float("nan"),
+                    close=float("nan"),
+                    volume=500,
+                )
+            )
+            return candles
+
+    monkeypatch.setattr(main_module, "get_provider", lambda name: _FakeProviderWithTrailingNanCandle())
+
+    resp = client.get("/instruments/RELIANCE/candles?lookback_days=10")
+    assert resp.status_code == 200  # not a 500 from json.dumps choking on NaN
+    body = resp.json()
+    assert len(body["candles"]) == 9  # the NaN trailing candle was dropped, not fabricated
+    assert all(c["close"] == c["close"] for c in body["candles"])  # no NaN made it through
