@@ -23,9 +23,22 @@ def test_niftyit_has_stock_instruments():
 
 
 def test_indices_universe_has_index_instruments():
+    # indices.json is now a broad, individually-verified set of NSE/BSE
+    # indices (broad-market + sectoral + strategy), not just the original 4.
     insts = list_universe("indices")
-    assert len(insts) == 4
+    assert len(insts) >= 25
     assert all(i.kind == "index" for i in insts)
+    symbols = {i.symbol for i in insts}
+    assert {"NIFTY50", "BANKNIFTY", "NIFTYIT", "NIFTYFIN", "NIFTYAUTO", "SENSEX"} <= symbols
+
+
+def test_nifty_financial_services_uses_the_correct_ticker():
+    # Regression: this was previously mislabeled with ^CNXFIN, a ticker that
+    # Yahoo Finance's own metadata identifies as a DIFFERENT index ("NIFTY
+    # FINSRV25 50"), not Nifty Financial Services.
+    inst = resolve("NIFTYFIN")
+    assert inst is not None
+    assert inst.yf_ticker == "NIFTY_FIN_SERVICE.NS"
 
 
 def test_all_stocks_is_deduped_union():
