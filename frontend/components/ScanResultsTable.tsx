@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tag } from "@/components/Ui";
+import { api } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
-import type { ScanResultRow } from "@/lib/types";
+import type { ScanResultRow, WatchlistEntry } from "@/lib/types";
 
 function parseIndicatorValues(json: string): string {
   try {
@@ -21,6 +23,22 @@ function parseIndicatorValues(json: string): string {
 
 export function ScanResultsTable({ results }: { results: ScanResultRow[] }) {
   const [matchesOnly, setMatchesOnly] = useState(false);
+  const queryClient = useQueryClient();
+
+  const watchlistQuery = useQuery({
+    queryKey: ["watchlist"],
+    queryFn: () => api<WatchlistEntry[]>("GET", "/watchlist"),
+  });
+  const watchlistSymbols = useMemo(() => {
+    const set = new Set<string>();
+    for (const entry of watchlistQuery.data ?? []) set.add(entry.symbol);
+    return set;
+  }, [watchlistQuery.data]);
+
+  const addMutation = useMutation({
+    mutationFn: (symbol: string) => api("POST", "/watchlist", { symbol }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["watchlist"] }),
+  });
 
   const sorted = useMemo(() => {
     return [...results].sort((a, b) => Number(b.satisfied) - Number(a.satisfied));
@@ -59,10 +77,13 @@ export function ScanResultsTable({ results }: { results: ScanResultRow[] }) {
                 <th>Latest Price</th>
                 <th>Last Candle Date</th>
                 <th>Indicator Values</th>
+                <th>Watchlist</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => (
+              {visible.map((r) => {
+                const added = watchlistSymbols.has(r.symbol);
+                return (
                 <tr key={r.symbol}>
                   <td style={{ textAlign: "left" }}>{r.symbol}</td>
                   <td>{r.kind}</td>
@@ -81,8 +102,19 @@ export function ScanResultsTable({ results }: { results: ScanResultRow[] }) {
                   </td>
                   <td>{r.last_candle_date ?? "—"}</td>
                   <td style={{ textAlign: "left" }}>{parseIndicatorValues(r.indicator_values_json)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      disabled={added || addMutation.isPending}
+                      onClick={() => addMutation.mutate(r.symbol)}
+                    >
+                      {added ? "Added ✓" : "Add"}
+                    </button>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
