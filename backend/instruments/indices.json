@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "as_of": "approximate, 2025 training knowledge - refresh from NSE's official index list before production use",
+    "count": 4
+  },
+  "constituents": [
+    {"symbol": "NIFTY50", "name": "Nifty 50", "yf_ticker": "^NSEI", "nse_symbol": "NIFTY 50", "kind": "index"},
+    {"symbol": "BANKNIFTY", "name": "Nifty Bank", "yf_ticker": "^NSEBANK", "nse_symbol": "NIFTY BANK", "kind": "index"},
+    {"symbol": "NIFTYIT", "name": "Nifty IT", "yf_ticker": "^CNXIT", "nse_symbol": "NIFTY IT", "kind": "index"},
+    {"symbol": "NIFTYFIN", "name": "Nifty Financial Services", "yf_ticker": "^CNXFIN", "nse_symbol": "NIFTY FIN SERVICE", "kind": "index"}
+  ]
+}
