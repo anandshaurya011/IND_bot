@@ -55,6 +55,16 @@ def test_ema200_matches_independent_calculation():
     assert result.iloc[-1] == pytest.approx(expected.iloc[-1])
 
 
+def test_ema_warmup_window_is_nan():
+    candles = _daily_candles(220)
+    df = to_dataframe(candles)
+    result = ema(df, 200)
+    # insufficient lookback -> NaN, not fabricated
+    assert pd.isna(result.iloc[0])
+    assert pd.isna(result.iloc[198])
+    assert not pd.isna(result.iloc[199])
+
+
 def test_sma_basic():
     candles = _daily_candles(10)
     df = to_dataframe(candles)

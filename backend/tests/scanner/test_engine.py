@@ -59,7 +59,11 @@ class _FakeProvider(Provider):
 
     name = "fake"
 
+    def __init__(self):
+        self.lookback_calls: list[int] = []
+
     def get_daily_candles(self, symbol, lookback_days):
+        self.lookback_calls.append(lookback_days)
         if symbol == _OK_SYMBOL:
             return _make_candles(lookback_days, drop_last=5)
         if symbol == _PARTIAL_SYMBOL:
@@ -98,9 +102,14 @@ def _make_strategy(min_consecutive_sessions: int) -> Strategy:
     )
 
 
+@pytest.fixture
+def fake_provider():
+    return _FakeProvider()
+
+
 @pytest.fixture(autouse=True)
-def _patch_engine(monkeypatch):
-    monkeypatch.setattr("scanner.engine.get_provider", lambda name: _FakeProvider())
+def _patch_engine(monkeypatch, fake_provider):
+    monkeypatch.setattr("scanner.engine.get_provider", lambda name: fake_provider)
     monkeypatch.setattr(
         "scanner.engine.list_universe", lambda name: list(_INSTRUMENTS.values())
     )
@@ -136,3 +145,52 @@ def test_run_scan_provider_error_becomes_row_not_dropped():
     # The scan as a whole still returns rows for the other instruments.
     ok_row = next(r for r in rows if r.symbol == "OK")
     assert ok_row.latest_price is not None
+
+
+def test_run_scan_ema200_requests_enough_lookback_for_warmup(fake_provider):
+    # EMA length=200 + min_consecutive_sessions buffer must drive a lookback
+    # window well beyond the old flat +30 buffer - assert against the fake
+    # provider's recorded lookback_days call args.
+    strategy = _make_strategy(min_consecutive_sessions=5)
+    run_scan(strategy)
+
+    assert fake_provider.lookback_calls
+    # old behaviour would have requested min_consecutive_sessions + 30 = 35
+    # calendar days; the new behaviour must account for the EMA(200) warm-up.
+    assert all(count > 200 for count in fake_provider.lookback_calls)
+
+
+def test_run_scan_non_provider_error_becomes_row_not_dropped():
+    """A non-ProviderError exception (e.g. malformed compare_to/params raising
+    ValueError) for one instrument must not drop the other instruments'
+    results, mirroring test_run_scan_provider_error_becomes_row_not_dropped
+    but with a different exception type.
+    """
+    strategy = Strategy(
+        id="strat-2",
+        user_id="user-1",
+        name="malformed-condition",
+        universe=["fake_universe"],
+        instrument_type="stock",
+        timeframe="daily",
+        conditions=[
+            Condition(
+                indicator="ema",
+                params={"length": 200},
+                comparison="above",
+                compare_to="ema:not_a_number",
+            )
+        ],
+        logic="AND",
+        min_consecutive_sessions=5,
+        provider="fake",
+        enabled=True,
+    )
+
+    rows = run_scan(strategy)
+
+    symbols = {r.symbol for r in rows}
+    assert symbols == {"OK", "PARTIAL", "FAIL"}
+    for row in rows:
+        assert row.latest_price is None
+        assert row.satisfied is False

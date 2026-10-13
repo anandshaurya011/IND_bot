@@ -54,7 +54,7 @@ def to_dataframe(candles: list[Candle]) -> pd.DataFrame:
 
 
 def ema(df: pd.DataFrame, length: int) -> pd.Series:
-    return df["close"].ewm(span=length, adjust=False).mean()
+    return df["close"].ewm(span=length, adjust=False, min_periods=length).mean()
 
 
 def sma(df: pd.DataFrame, length: int) -> pd.Series:

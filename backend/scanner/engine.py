@@ -10,6 +10,7 @@ the instrument from the output.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -22,9 +23,16 @@ from market_data.base import ProviderError
 from strategies.model import Condition, Strategy
 from strategies.persistence import consecutive_sessions_satisfied
 
-# Buffer of extra sessions fetched beyond min_consecutive_sessions, to give
-# indicators (e.g. EMA200) a reasonable warm-up window.
-_SESSION_BUFFER = 30
+logger = logging.getLogger(__name__)
+
+# Extra trading-session buffer added on top of the largest indicator length
+# actually used by a strategy, to give indicators room to warm up fully
+# before the persistence window begins.
+_SESSION_BUFFER = 10
+
+# Default indicator length used when a condition/compare_to doesn't specify
+# one explicitly (mirrors calc.py's indicator function defaults).
+_DEFAULT_INDICATOR_LENGTH = 14
 
 # Dispatch table: Condition.indicator string -> calc.py function.
 _INDICATOR_FUNCS = {
@@ -173,9 +181,37 @@ def _evaluate_strategy(df: pd.DataFrame, strategy: Strategy) -> pd.Series:
     return combined
 
 
+def _max_indicator_length(strategy: Strategy) -> int:
+    """Largest indicator "length" used anywhere in `strategy.conditions`.
+
+    Looks at each condition's `params["length"]` and at its `compare_to` spec
+    (e.g. "ema:200" via `_parse_spec`), falling back to
+    `_DEFAULT_INDICATOR_LENGTH` when a condition carries no explicit length.
+    """
+    lengths = [_DEFAULT_INDICATOR_LENGTH]
+    for condition in strategy.conditions:
+        if "length" in condition.params:
+            lengths.append(condition.params["length"])
+        if condition.compare_to != "price" and ":" in condition.compare_to:
+            _, parsed_params = _parse_spec(condition.compare_to)
+            if "length" in parsed_params:
+                lengths.append(parsed_params["length"])
+    return max(lengths)
+
+
+def _sessions_to_calendar_days(lookback_sessions: int) -> int:
+    """Convert a trading-session count to a calendar-day count for providers
+    (like yfinance) whose lookback window is calendar days, not sessions.
+    Roughly accounts for weekends/holidays.
+    """
+    return int(lookback_sessions * 1.6 + 10)
+
+
 def _scan_one(strategy: Strategy, instrument: Instrument) -> ScanResultRow:
     provider = get_provider(strategy.provider)
-    fetch_count = strategy.min_consecutive_sessions + _SESSION_BUFFER
+    max_length = _max_indicator_length(strategy)
+    lookback_sessions = strategy.min_consecutive_sessions + max_length + _SESSION_BUFFER
+    fetch_count = _sessions_to_calendar_days(lookback_sessions)
     symbol = _symbol_for_provider(instrument, strategy.provider)
 
     candles = provider.get_daily_candles(symbol, lookback_days=fetch_count)
@@ -232,7 +268,16 @@ def run_scan(strategy: Strategy) -> list[ScanResultRow]:
     for instrument in instruments:
         try:
             rows.append(_scan_one(strategy, instrument))
-        except ProviderError:
+        except Exception as exc:  # noqa: BLE001 - one bad instrument must
+            # never abort the whole scan (malformed compare_to/params,
+            # unexpected provider failures, etc. - not just ProviderError).
+            logger.warning(
+                "scan failed for instrument=%s strategy=%s: %s: %s",
+                instrument.symbol,
+                strategy.id,
+                type(exc).__name__,
+                exc,
+            )
             rows.append(
                 ScanResultRow(
                     run_id=None,
