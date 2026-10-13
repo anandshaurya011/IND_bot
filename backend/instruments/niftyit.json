@@ -1,18 +1,80 @@
 {
   "_meta": {
-    "as_of": "approximate, 2025 training knowledge - refresh from NSE's official index constituent CSV before production use",
+    "as_of": "2026-10-14",
+    "source": "https://niftyindices.com/IndexConstituent/ind_niftyitlist.csv",
+    "fetched_at": "2026-10-13T21:06:57.285477+00:00",
     "count": 10
   },
   "constituents": [
-    {"symbol": "TCS", "name": "Tata Consultancy Services Ltd", "yf_ticker": "TCS.NS", "nse_symbol": "TCS", "kind": "stock"},
-    {"symbol": "INFY", "name": "Infosys Ltd", "yf_ticker": "INFY.NS", "nse_symbol": "INFY", "kind": "stock"},
-    {"symbol": "HCLTECH", "name": "HCL Technologies Ltd", "yf_ticker": "HCLTECH.NS", "nse_symbol": "HCLTECH", "kind": "stock"},
-    {"symbol": "WIPRO", "name": "Wipro Ltd", "yf_ticker": "WIPRO.NS", "nse_symbol": "WIPRO", "kind": "stock"},
-    {"symbol": "TECHM", "name": "Tech Mahindra Ltd", "yf_ticker": "TECHM.NS", "nse_symbol": "TECHM", "kind": "stock"},
-    {"symbol": "LTIM", "name": "LTIMindtree Ltd", "yf_ticker": "LTIM.NS", "nse_symbol": "LTIM", "kind": "stock"},
-    {"symbol": "PERSISTENT", "name": "Persistent Systems Ltd", "yf_ticker": "PERSISTENT.NS", "nse_symbol": "PERSISTENT", "kind": "stock"},
-    {"symbol": "COFORGE", "name": "Coforge Ltd", "yf_ticker": "COFORGE.NS", "nse_symbol": "COFORGE", "kind": "stock"},
-    {"symbol": "MPHASIS", "name": "Mphasis Ltd", "yf_ticker": "MPHASIS.NS", "nse_symbol": "MPHASIS", "kind": "stock"},
-    {"symbol": "LTTS", "name": "L&T Technology Services Ltd", "yf_ticker": "LTTS.NS", "nse_symbol": "LTTS", "kind": "stock"}
+    {
+      "symbol": "COFORGE",
+      "name": "Coforge Ltd",
+      "yf_ticker": "COFORGE.NS",
+      "nse_symbol": "COFORGE",
+      "kind": "stock"
+    },
+    {
+      "symbol": "HCLTECH",
+      "name": "HCL Technologies Ltd",
+      "yf_ticker": "HCLTECH.NS",
+      "nse_symbol": "HCLTECH",
+      "kind": "stock"
+    },
+    {
+      "symbol": "INFY",
+      "name": "Infosys Ltd",
+      "yf_ticker": "INFY.NS",
+      "nse_symbol": "INFY",
+      "kind": "stock"
+    },
+    {
+      "symbol": "LTM",
+      "name": "LTM Ltd",
+      "yf_ticker": "LTM.NS",
+      "nse_symbol": "LTM",
+      "kind": "stock"
+    },
+    {
+      "symbol": "MPHASIS",
+      "name": "MphasiS Ltd",
+      "yf_ticker": "MPHASIS.NS",
+      "nse_symbol": "MPHASIS",
+      "kind": "stock"
+    },
+    {
+      "symbol": "OFSS",
+      "name": "Oracle Financial Services Software Ltd",
+      "yf_ticker": "OFSS.NS",
+      "nse_symbol": "OFSS",
+      "kind": "stock"
+    },
+    {
+      "symbol": "PERSISTENT",
+      "name": "Persistent Systems Ltd",
+      "yf_ticker": "PERSISTENT.NS",
+      "nse_symbol": "PERSISTENT",
+      "kind": "stock"
+    },
+    {
+      "symbol": "TCS",
+      "name": "Tata Consultancy Services Ltd",
+      "yf_ticker": "TCS.NS",
+      "nse_symbol": "TCS",
+      "kind": "stock"
+    },
+    {
+      "symbol": "TECHM",
+      "name": "Tech Mahindra Ltd",
+      "yf_ticker": "TECHM.NS",
+      "nse_symbol": "TECHM",
+      "kind": "stock"
+    },
+    {
+      "symbol": "WIPRO",
+      "name": "Wipro Ltd",
+      "yf_ticker": "WIPRO.NS",
+      "nse_symbol": "WIPRO",
+      "kind": "stock"
+    }
   ]
 }

@@ -1,12 +1,12 @@
 from instruments.universe import list_universe, resolve
 
 
-def test_nifty50_has_at_least_thirty_stock_instruments():
-    # The bundled nifty50.json is a point-in-time, best-effort snapshot (see its
-    # "_meta" key) rather than a verified live fetch of all 50 current
-    # constituents, so this asserts a confident lower bound instead of == 50.
+def test_nifty50_has_all_fifty_stock_instruments():
+    # nifty50.json is now refreshed from NSE's own official constituent CSV
+    # (see scripts/refresh_instrument_lists.py and its "_meta.source" key),
+    # not a best-effort snapshot, so this asserts the exact live count.
     insts = list_universe("nifty50")
-    assert len(insts) >= 30
+    assert len(insts) == 50
     assert all(i.kind == "stock" for i in insts)
 
 

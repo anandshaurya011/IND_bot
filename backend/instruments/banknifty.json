@@ -1,20 +1,108 @@
 {
   "_meta": {
-    "as_of": "approximate, 2025 training knowledge - refresh from NSE's official index constituent CSV before production use",
-    "count": 12
+    "as_of": "2026-10-14",
+    "source": "https://niftyindices.com/IndexConstituent/ind_niftybanklist.csv",
+    "fetched_at": "2026-10-13T21:06:57.285477+00:00",
+    "count": 14
   },
   "constituents": [
-    {"symbol": "HDFCBANK", "name": "HDFC Bank Ltd", "yf_ticker": "HDFCBANK.NS", "nse_symbol": "HDFCBANK", "kind": "stock"},
-    {"symbol": "ICICIBANK", "name": "ICICI Bank Ltd", "yf_ticker": "ICICIBANK.NS", "nse_symbol": "ICICIBANK", "kind": "stock"},
-    {"symbol": "SBIN", "name": "State Bank of India", "yf_ticker": "SBIN.NS", "nse_symbol": "SBIN", "kind": "stock"},
-    {"symbol": "KOTAKBANK", "name": "Kotak Mahindra Bank Ltd", "yf_ticker": "KOTAKBANK.NS", "nse_symbol": "KOTAKBANK", "kind": "stock"},
-    {"symbol": "AXISBANK", "name": "Axis Bank Ltd", "yf_ticker": "AXISBANK.NS", "nse_symbol": "AXISBANK", "kind": "stock"},
-    {"symbol": "INDUSINDBK", "name": "IndusInd Bank Ltd", "yf_ticker": "INDUSINDBK.NS", "nse_symbol": "INDUSINDBK", "kind": "stock"},
-    {"symbol": "BANKBARODA", "name": "Bank of Baroda", "yf_ticker": "BANKBARODA.NS", "nse_symbol": "BANKBARODA", "kind": "stock"},
-    {"symbol": "PNB", "name": "Punjab National Bank", "yf_ticker": "PNB.NS", "nse_symbol": "PNB", "kind": "stock"},
-    {"symbol": "CANBK", "name": "Canara Bank", "yf_ticker": "CANBK.NS", "nse_symbol": "CANBK", "kind": "stock"},
-    {"symbol": "FEDERALBNK", "name": "Federal Bank Ltd", "yf_ticker": "FEDERALBNK.NS", "nse_symbol": "FEDERALBNK", "kind": "stock"},
-    {"symbol": "IDFCFIRSTB", "name": "IDFC First Bank Ltd", "yf_ticker": "IDFCFIRSTB.NS", "nse_symbol": "IDFCFIRSTB", "kind": "stock"},
-    {"symbol": "AUBANK", "name": "AU Small Finance Bank Ltd", "yf_ticker": "AUBANK.NS", "nse_symbol": "AUBANK", "kind": "stock"}
+    {
+      "symbol": "AUBANK",
+      "name": "AU Small Finance Bank Ltd",
+      "yf_ticker": "AUBANK.NS",
+      "nse_symbol": "AUBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "AXISBANK",
+      "name": "Axis Bank Ltd",
+      "yf_ticker": "AXISBANK.NS",
+      "nse_symbol": "AXISBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "BANKBARODA",
+      "name": "Bank of Baroda",
+      "yf_ticker": "BANKBARODA.NS",
+      "nse_symbol": "BANKBARODA",
+      "kind": "stock"
+    },
+    {
+      "symbol": "CANBK",
+      "name": "Canara Bank",
+      "yf_ticker": "CANBK.NS",
+      "nse_symbol": "CANBK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "FEDERALBNK",
+      "name": "Federal Bank Ltd",
+      "yf_ticker": "FEDERALBNK.NS",
+      "nse_symbol": "FEDERALBNK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "HDFCBANK",
+      "name": "HDFC Bank Ltd",
+      "yf_ticker": "HDFCBANK.NS",
+      "nse_symbol": "HDFCBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "ICICIBANK",
+      "name": "ICICI Bank Ltd",
+      "yf_ticker": "ICICIBANK.NS",
+      "nse_symbol": "ICICIBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "IDFCFIRSTB",
+      "name": "IDFC First Bank Ltd",
+      "yf_ticker": "IDFCFIRSTB.NS",
+      "nse_symbol": "IDFCFIRSTB",
+      "kind": "stock"
+    },
+    {
+      "symbol": "INDUSINDBK",
+      "name": "IndusInd Bank Ltd",
+      "yf_ticker": "INDUSINDBK.NS",
+      "nse_symbol": "INDUSINDBK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "KOTAKBANK",
+      "name": "Kotak Mahindra Bank Ltd",
+      "yf_ticker": "KOTAKBANK.NS",
+      "nse_symbol": "KOTAKBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "PNB",
+      "name": "Punjab National Bank",
+      "yf_ticker": "PNB.NS",
+      "nse_symbol": "PNB",
+      "kind": "stock"
+    },
+    {
+      "symbol": "SBIN",
+      "name": "State Bank of India",
+      "yf_ticker": "SBIN.NS",
+      "nse_symbol": "SBIN",
+      "kind": "stock"
+    },
+    {
+      "symbol": "UNIONBANK",
+      "name": "Union Bank of India",
+      "yf_ticker": "UNIONBANK.NS",
+      "nse_symbol": "UNIONBANK",
+      "kind": "stock"
+    },
+    {
+      "symbol": "YESBANK",
+      "name": "Yes Bank Ltd",
+      "yf_ticker": "YESBANK.NS",
+      "nse_symbol": "YESBANK",
+      "kind": "stock"
+    }
   ]
 }
