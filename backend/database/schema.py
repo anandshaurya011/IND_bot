@@ -23,6 +23,9 @@ _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS watchlist ("
     "user_id TEXT, symbol TEXT, added_at INTEGER, PRIMARY KEY (user_id, symbol))",
     "CREATE TABLE IF NOT EXISTS scheduler_locks (slot_key TEXT PRIMARY KEY, locked_at INTEGER)",
+    "CREATE TABLE IF NOT EXISTS user_settings ("
+    "user_id TEXT PRIMARY KEY, telegram_chat_id TEXT, telegram_bot_token_enc TEXT, "
+    "active_provider TEXT, updated_at INTEGER)",
 ]
 
 

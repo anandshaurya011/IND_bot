@@ -18,6 +18,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from database import schema
+from notifications.telegram import notify_new_matches
 from scanner.engine import run_scan
 from strategies.model import Strategy
 
@@ -66,6 +67,21 @@ def run_scheduled_scan(strategy: Strategy) -> None:
     started_at = int(time.time())
     conn = schema.conn()
     try:
+        prior_row = conn.execute(
+            "SELECT id FROM scan_runs WHERE strategy_id = ? AND status = 'ok' "
+            "ORDER BY started_at DESC LIMIT 1",
+            (strategy.id,),
+        ).fetchone()
+        previous_matches: set[str] = set()
+        if prior_row is not None:
+            previous_matches = {
+                r["symbol"]
+                for r in conn.execute(
+                    "SELECT symbol FROM scan_results WHERE run_id = ? AND satisfied = 1",
+                    (prior_row["id"],),
+                ).fetchall()
+            }
+
         try:
             rows = run_scan(strategy)
         except Exception as exc:  # defensive: run_scan should not raise, but
@@ -111,6 +127,14 @@ def run_scheduled_scan(strategy: Strategy) -> None:
                     row.last_candle_date,
                 ),
             )
+
+        current_matches = {row.symbol for row in rows if row.satisfied}
+        try:
+            notify_new_matches(strategy.user_id, strategy, current_matches, previous_matches)
+        except Exception:
+            # Notifications must never crash a scan; notify_new_matches already
+            # logs internally, but guard defensively against any other failure.
+            logger.exception("notify_new_matches failed for strategy=%s", strategy.id)
     finally:
         conn.close()
 

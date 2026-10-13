@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 import auth
+import crypto
 from database import schema
 from scheduler.jobs import SchedulerService
 from strategies.model import Strategy
@@ -99,6 +100,12 @@ class StrategyIn(BaseModel):
 
 class WatchlistIn(BaseModel):
     symbol: str
+
+
+class SettingsIn(BaseModel):
+    telegram_chat_id: str | None = None
+    telegram_bot_token: str | None = None
+    active_provider: str | None = None
 
 
 # --------------------------------------------------------------------------
@@ -290,6 +297,77 @@ def get_scan_results(run_id: str):
     finally:
         conn.close()
     return [dict(r) for r in rows]
+
+
+# --------------------------------------------------------------------------
+# Settings
+# --------------------------------------------------------------------------
+
+@app.get("/settings")
+def get_settings():
+    uid = auth.user_id_var.get()
+    conn = schema.conn()
+    try:
+        row = conn.execute(
+            "SELECT telegram_chat_id, active_provider, updated_at FROM user_settings WHERE user_id = ?",
+            (uid,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return {
+            "telegram_chat_id": None,
+            "telegram_bot_token_configured": False,
+            "active_provider": None,
+            "updated_at": None,
+        }
+    return {
+        "telegram_chat_id": row["telegram_chat_id"],
+        "telegram_bot_token_configured": bool(row["telegram_chat_id"]),
+        "active_provider": row["active_provider"],
+        "updated_at": row["updated_at"],
+    }
+
+
+@app.put("/settings")
+def put_settings(body: SettingsIn):
+    uid = auth.user_id_var.get()
+    conn = schema.conn()
+    try:
+        existing = conn.execute(
+            "SELECT telegram_chat_id, telegram_bot_token_enc, active_provider FROM user_settings WHERE user_id = ?",
+            (uid,),
+        ).fetchone()
+
+        telegram_chat_id = (
+            body.telegram_chat_id if body.telegram_chat_id is not None
+            else (existing["telegram_chat_id"] if existing else None)
+        )
+        if body.telegram_bot_token is not None:
+            telegram_bot_token_enc = crypto.encrypt(body.telegram_bot_token)
+        else:
+            telegram_bot_token_enc = existing["telegram_bot_token_enc"] if existing else None
+        active_provider = (
+            body.active_provider if body.active_provider is not None
+            else (existing["active_provider"] if existing else None)
+        )
+
+        conn.execute(
+            "INSERT INTO user_settings (user_id, telegram_chat_id, telegram_bot_token_enc, "
+            "active_provider, updated_at) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET telegram_chat_id = excluded.telegram_chat_id, "
+            "telegram_bot_token_enc = excluded.telegram_bot_token_enc, "
+            "active_provider = excluded.active_provider, updated_at = excluded.updated_at",
+            (uid, telegram_chat_id, telegram_bot_token_enc, active_provider, int(time.time())),
+        )
+    finally:
+        conn.close()
+
+    return {
+        "telegram_chat_id": telegram_chat_id,
+        "telegram_bot_token_configured": bool(telegram_bot_token_enc),
+        "active_provider": active_provider,
+    }
 
 
 # --------------------------------------------------------------------------
