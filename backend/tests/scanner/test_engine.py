@@ -1,8 +1,9 @@
+import pandas as pd
 import pytest
 
 from instruments.universe import Instrument
 from market_data.base import Candle, Provider, ProviderError
-from scanner.engine import run_scan
+from scanner.engine import _compare, run_scan
 from strategies.model import Condition, Strategy
 
 _OK_SYMBOL = "OK.NS"
@@ -113,6 +114,8 @@ def _patch_engine(monkeypatch, fake_provider):
     monkeypatch.setattr(
         "scanner.engine.list_universe", lambda name: list(_INSTRUMENTS.values())
     )
+    # No real network calls in tests - skip the inter-instrument rate-limit pacing.
+    monkeypatch.setattr("scanner.engine.INTER_INSTRUMENT_DELAY_SECONDS", 0)
 
 
 def test_run_scan_satisfied_for_full_trailing_run():
@@ -194,3 +197,24 @@ def test_run_scan_non_provider_error_becomes_row_not_dropped():
     for row in rows:
         assert row.latest_price is None
         assert row.satisfied is False
+
+
+def test_compare_not_equal():
+    lhs = pd.Series([1.0, 2.0, 3.0, float("nan")])
+    rhs = pd.Series([1.0, 2.5, 3.0, 4.0])
+    result = _compare(lhs, "not_equal", rhs)
+    # row 0: equal -> False. row 1: differ -> True. row 2: equal -> False.
+    # row 3: lhs is NaN -> never fabricate a verdict -> False.
+    assert list(result) == [False, True, False, False]
+
+
+def test_run_scan_paces_requests_between_instruments(monkeypatch):
+    sleep_calls = []
+    monkeypatch.setattr("scanner.engine.time.sleep", lambda s: sleep_calls.append(s))
+    monkeypatch.setattr("scanner.engine.INTER_INSTRUMENT_DELAY_SECONDS", 0.35)
+
+    strategy = _make_strategy(min_consecutive_sessions=1)
+    run_scan(strategy)
+
+    # 3 instruments -> 2 inter-instrument pauses (no delay before the first).
+    assert sleep_calls == [0.35, 0.35]

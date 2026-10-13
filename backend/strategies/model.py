@@ -12,7 +12,7 @@ class Condition(BaseModel):
 
     indicator: str
     params: dict
-    comparison: Literal["above", "below", "crosses_above", "crosses_below"]
+    comparison: Literal["above", "below", "crosses_above", "crosses_below", "not_equal"]
     # Either another indicator spec (as a string) or the literal "price".
     compare_to: str
 

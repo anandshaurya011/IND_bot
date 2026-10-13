@@ -8,6 +8,7 @@ const COMPARISONS: { value: Condition["comparison"]; label: string }[] = [
   { value: "below", label: "Below" },
   { value: "crosses_above", label: "Crosses above" },
   { value: "crosses_below", label: "Crosses below" },
+  { value: "not_equal", label: "Not equal (above or below)" },
 ];
 
 function indicatorInfo(value: string) {

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -34,10 +35,19 @@ _SESSION_BUFFER = 10
 # one explicitly (mirrors calc.py's indicator function defaults).
 _DEFAULT_INDICATOR_LENGTH = 14
 
+# Small delay between per-instrument fetches. Free data providers (notably
+# Yahoo Finance via yfinance) intermittently 404 ("quoteSummary ... Quote not
+# found") or rate-limit when hit with many requests back-to-back with no
+# pacing - this is NOT a per-symbol data problem (the same symbol succeeds
+# moments later), it's a bulk-request throttling trigger. Tests monkeypatch
+# this to 0 so the fake-provider test suite stays fast.
+INTER_INSTRUMENT_DELAY_SECONDS = 0.35
+
 # Dispatch table: Condition.indicator string -> calc.py function.
 _INDICATOR_FUNCS = {
     "ema": calc.ema,
     "sma": calc.sma,
+    "vwma": calc.vwma,
     "rsi": calc.rsi,
     "macd": calc.macd,
     "bollinger": calc.bollinger,
@@ -150,6 +160,8 @@ def _compare(lhs: pd.Series, comparison: str, rhs: pd.Series) -> pd.Series:
         prev_rhs = rhs.shift(1)
         valid = valid & prev_lhs.notna() & prev_rhs.notna()
         result = (prev_lhs >= prev_rhs) & (lhs < rhs)
+    elif comparison == "not_equal":
+        result = lhs != rhs
     else:
         raise ProviderError(f"unknown comparison: {comparison!r}")
 
@@ -265,7 +277,9 @@ def run_scan(strategy: Strategy) -> list[ScanResultRow]:
     instruments = _resolve_universe(strategy)
     rows: list[ScanResultRow] = []
 
-    for instrument in instruments:
+    for i, instrument in enumerate(instruments):
+        if i > 0 and INTER_INSTRUMENT_DELAY_SECONDS > 0:
+            time.sleep(INTER_INSTRUMENT_DELAY_SECONDS)
         try:
             rows.append(_scan_one(strategy, instrument))
         except Exception as exc:  # noqa: BLE001 - one bad instrument must

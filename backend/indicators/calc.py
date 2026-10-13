@@ -61,6 +61,13 @@ def sma(df: pd.DataFrame, length: int) -> pd.Series:
     return df["close"].rolling(window=length).mean()
 
 
+def vwma(df: pd.DataFrame, length: int) -> pd.Series:
+    """Volume-weighted moving average: rolling sum(close*volume) / rolling sum(volume)."""
+    price_vol = (df["close"] * df["volume"]).rolling(window=length).sum()
+    vol = df["volume"].rolling(window=length).sum()
+    return price_vol / vol
+
+
 def rsi(df: pd.DataFrame, length: int = 14) -> pd.Series:
     return ta.momentum.RSIIndicator(close=df["close"], window=length).rsi()
 

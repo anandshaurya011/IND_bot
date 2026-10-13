@@ -3,6 +3,7 @@ export const KNOWN_INDICATORS: { value: string; label: string; needsLength: bool
   { value: "close", label: "Close price", needsLength: false },
   { value: "ema", label: "EMA", needsLength: true },
   { value: "sma", label: "SMA", needsLength: true },
+  { value: "vwma", label: "VWMA", needsLength: true },
   { value: "rsi", label: "RSI", needsLength: true },
   { value: "macd", label: "MACD", needsLength: false },
   { value: "bollinger", label: "Bollinger Bands", needsLength: true },

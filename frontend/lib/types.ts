@@ -9,7 +9,7 @@ export interface Instrument {
 export interface Condition {
   indicator: string;
   params: Record<string, number>;
-  comparison: "above" | "below" | "crosses_above" | "crosses_below";
+  comparison: "above" | "below" | "crosses_above" | "crosses_below" | "not_equal";
   compare_to: string;
 }
 

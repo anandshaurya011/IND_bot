@@ -16,6 +16,7 @@ from indicators.calc import (
     validate_indicator_timeframe,
     vwap_rolling,
     vwap_session,
+    vwma,
 )
 from market_data.base import Candle
 
@@ -73,6 +74,25 @@ def test_sma_basic():
     assert result.iloc[-1] == pytest.approx(expected_last)
     # insufficient lookback -> NaN, not fabricated
     assert pd.isna(result.iloc[0])
+
+
+def test_vwma_matches_independent_calculation():
+    candles = _daily_candles(10)
+    df = to_dataframe(candles)
+    result = vwma(df, 5)
+    window = df.iloc[-5:]
+    expected_last = (window["close"] * window["volume"]).sum() / window["volume"].sum()
+    assert result.iloc[-1] == pytest.approx(expected_last)
+    # insufficient lookback -> NaN, not fabricated
+    assert pd.isna(result.iloc[0])
+
+
+def test_vwma_differs_from_sma_when_volume_varies():
+    candles = _daily_candles(10)
+    df = to_dataframe(candles)
+    # volume increases over time in _daily_candles, so the volume-weighted
+    # average should differ from the plain average over the same window.
+    assert vwma(df, 5).iloc[-1] != pytest.approx(sma(df, 5).iloc[-1])
 
 
 def test_rsi_dtype_and_range():
